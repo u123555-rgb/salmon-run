@@ -244,15 +244,25 @@ kibori(c,p){c.scale(1.95,1.95);const s0={...p,sw:0};
 function drawActor(c,id,p){(DRAW[id]||DRAW.shake)(c,p)}
 
 function sign(c,txt,x,y,w,h,bg,fg,fs){rr(c,x-w/2,y-h/2,w,h,2,bg,2);c.fillStyle=fg;c.font=`${fs}px 'Dela Gothic One','Hiragino Sans',sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText(txt,x,y+1)}
-function drawHatchery(c,t,g){
+// 遡上してきた鮭の群れ。体力が減ると数が減る
+const SCHOOL=(()=>{const R=seeded(731),a=[];for(let i=0;i<38;i++)a.push({r:i,x:(R()-.5)*122,y:-8-R()*72,s:.58+R()*.5,p:R()*6.28,k:R()*3|0});return a.sort((p,q)=>p.y-q.y)})();
+const SCHOOL_COL=['#8fa6b4','#a3b6c1','#7c94a3'];
+function schoolFish(c,f,t){
+  const x=f.x+Math.sin(t*1.3+f.p)*5,y=f.y+Math.sin(t*2.1+f.p*2)*2.6,w=Math.sin(t*9+f.p)*3;
+  c.save();c.translate(x,y);c.scale(f.s,f.s);
+  poly(c,[[14,-2],[27,-8+w],[23,0],[27,8+w],[14,2]],SCHOOL_COL[f.k],1.6);
+  E(c,0,0,20,8,SCHOOL_COL[f.k],0,1.7);
+  line(c,[[-13,2],[13,2]],2.2,'#ff9a78');
+  dot(c,-13,-1.6,1.5);
+  c.restore();
+}
+function drawSchool(c,t,g,ratio){
   c.save();c.translate(0,g);
-  for(const x of[-40,-8,24,44])rr(c,x-3,-74,7,80,1,'#5d4630',2);
-  rr(c,-54,-126,108,56,3,'#c98f58',2.4);
-  c.lineWidth=1.4;c.strokeStyle='rgba(23,36,44,.4)';for(let i=1;i<5;i++){c.beginPath();c.moveTo(-54+i*22,-126);c.lineTo(-54+i*22,-70);c.stroke()}
-  poly(c,[[-66,-124],[0,-160],[66,-124]],'#4c7f8c',2.4);
-  sign(c,'ふ化場',0,-110,74,22,'#fff','#17242c',14);
-  rr(c,-34,-92,20,18,1,'#7fd0dd',2);rr(c,14,-92,20,18,1,'#7fd0dd',2);
-  dot(c,-24+Math.sin(t*2)*5,-83,2,'#ff8a5c');dot(c,24+Math.cos(t*2)*5,-82,2,'#ff8a5c');
+  rr(c,-3,-108,6,106,1,'#5d4630',1.8);
+  sign(c,'鮭の群れ',0,-112,74,22,'#fff','#17242c',12);
+  E(c,0,-44,72,44,'rgba(10,52,66,.3)',0,0);
+  const n=Math.max(4,Math.ceil(SCHOOL.length*Math.max(0,ratio)));
+  for(const f of SCHOOL)if(f.r<n)schoolFish(c,f,t);
   c.restore();
 }
 const EBASE=[
@@ -296,6 +306,223 @@ const EBASE=[
 ];
 function drawEnemyBase(c,ch,t,g){c.save();c.translate(0,g);EBASE[ch](c,t);c.restore()}
 
+// ボスに負けた時の場面。幅400×高さ210で描く
+const still=t=>({t,sw:0,atk:0,roll:0});
+function actorAt(c,id,x,y,s,p,sy=s){c.save();c.translate(x,y);c.scale(s,sy);drawActor(c,id,p);c.restore()}
+function say(c,s,x,y,w,tx,ty,fs=14){
+  c.beginPath();c.moveTo(tx-7,y+24);c.lineTo(ty&&tx,ty);c.lineTo(tx+7,y+24);c.closePath();P(c,'#fffdf4',2);
+  rr(c,x,y,w,26,8,'#fffdf4',2);
+  c.fillStyle='#fffdf4';c.fillRect(tx-5,y+22,10,3);
+  c.fillStyle=INK;c.font=`${fs}px 'Yusei Magic','Hiragino Maru Gothic ProN',sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText(s,x+w/2,y+14);
+}
+function sweat(c,x,y,t,seed=0){const a=(t*1.4+seed)%1;c.globalAlpha=1-a;E(c,x+a*7,y+a*12,2.2,3.4,'#8fdcf0',.5,1);c.globalAlpha=1}
+function sceneBack(c,top,bottom,y,ground){
+  const g=c.createLinearGradient(0,0,0,y);g.addColorStop(0,top);g.addColorStop(1,bottom);c.fillStyle=g;c.fillRect(0,0,400,210);
+  c.fillStyle=ground;c.fillRect(0,y,400,210-y);
+}
+const LOSE_SCENES={
+// トド親分:鮭たちが座布団に
+todo(c,t){
+  sceneBack(c,'#ffcf9c','#ff9d7c',150,'#2a8ea3');
+  c.beginPath();c.moveTo(62,210);c.lineTo(92,176);c.lineTo(310,172);c.lineTo(350,210);c.closePath();P(c,'#7c7f83');
+  for(const[x,o]of[[118,0],[176,1],[234,2],[290,3]])actorAt(c,'shake',x,197+Math.sin(t*3+o)*1,1.15,{...still(t),t:t+o},.46);
+  actorAt(c,'todo',200,170+Math.sin(t*1.7)*1.6,.6,still(0));
+  for(let i=0;i<3;i++){const a=(t*.45+i/3)%1;c.globalAlpha=1-a;c.fillStyle='#fffdf4';c.font=`${13+a*12}px 'Dela Gothic One',sans-serif`;c.textAlign='center';c.fillText('Z',118-a*24+i*6,86-a*52);c.globalAlpha=1}
+  say(c,'ぐえっ',18,136,62,62,176);
+  sweat(c,104,168,t);sweat(c,300,168,t,.5);
+},
+// 網元:まとめて網の中
+amimoto(c,t){
+  sceneBack(c,'#bfe4ec','#e8f3df',148,'#1f7f95');
+  c.fillStyle='#6a4b2d';c.fillRect(0,176,400,34);line(c,[[0,176],[400,176]],2.4);
+  line(c,[[34,176],[34,12],[142,12]],6,INK);line(c,[[34,176],[34,12],[142,12]],3,'#8d6a42');
+  c.save();c.translate(142,12);c.rotate(Math.sin(t*1.8)*.05);
+  line(c,[[0,0],[0,26]],3);
+  const bag=()=>{c.beginPath();c.ellipse(0,92,72,64,0,0,6.2832)};
+  bag();c.fillStyle='rgba(31,127,149,.3)';c.fill();
+  c.save();bag();c.clip();
+  for(const[id,x,y,r,s,o]of[['shake',-30,106,.4,.72,0],['shake',28,98,-.5,.72,1],['ikura',-6,146,0,.72,2],['shake',0,132,.15,.66,3],['ikura',38,146,0,.62,4],['ikura',-40,142,0,.6,5]]){
+    c.save();c.translate(x,y+Math.sin(t*5+o)*1.5);c.rotate(r+Math.sin(t*4+o)*.07);c.scale(s,s);drawActor(c,id,{...still(t+o),sw:0});c.restore()}
+  c.lineWidth=1.5;c.strokeStyle='rgba(255,255,255,.8)';
+  for(let i=-10;i<=10;i++){c.beginPath();c.moveTo(i*19-120,0);c.lineTo(i*19+120,190);c.moveTo(i*19+120,0);c.lineTo(i*19-120,190);c.stroke()}
+  c.restore();
+  bag();P(c,null,2.6);rr(c,-10,23,20,9,3,'#c8a33e',1.8);
+  c.restore();
+  actorAt(c,'amimoto',322,177,.74,still(t));
+  say(c,'大漁じゃ!',232,16,104,300,56);
+},
+// 回転ずしの大将:お皿の上へ
+taisho(c,t){
+  c.fillStyle='#f2ece0';c.fillRect(0,0,400,210);
+  c.fillStyle='#d9331f';c.fillRect(0,0,400,14);line(c,[[0,14],[400,14]],2.4);
+  actorAt(c,'taisho',326,160,.62,still(t));
+  rr(c,16,26,142,32,3,'#ffe63b',2.4);c.fillStyle='#e3170a';c.font="15px 'Dela Gothic One',sans-serif";c.textAlign='center';c.textBaseline='middle';c.fillText('本日のおすすめ',87,43);
+  c.fillStyle='#8a5a34';c.fillRect(0,160,400,50);line(c,[[0,160],[400,160]],2.4);
+  c.fillStyle='#494350';c.fillRect(0,144,400,20);line(c,[[0,144],[400,144]],2);line(c,[[0,164],[400,164]],2);
+  for(let i=0;i<4;i++){
+    const x=450-((t*26+i*135)%540);
+    E(c,x,154,50,10,'#fff',0,2.2);
+    rr(c,x-30,124,60,26,10,'#fbf7ec',2);
+    actorAt(c,'shake',x-1,158,.92,still(t+i));
+    sweat(c,x-34,106,t,i*.3);
+  }
+  say(c,'へい、おまち!',196,44,120,300,92);
+},
+// 滝のヌシ:おなかの中
+nushi(c,t){
+  sceneBack(c,'#7fc2bf','#d6ecd2',170,'#6f9a62');
+  for(const x of[28,364])poly(c,[[x-24,172],[x,92],[x+24,172]],'#2f6650',2);
+  line(c,[[0,170],[400,170]],2);
+  actorAt(c,'nushi',252,184,.82,still(0));
+  c.save();c.translate(177,101);c.rotate(Math.sin(t*7)*.28+.12);poly(c,[[3,-5],[-16,-14],[-11,0],[-16,14],[3,5]],'#8fa6b4',2);c.restore();
+  const bx=268,by=124;
+  E(c,bx,by,38,30,'#201512',0,2.4);
+  c.save();c.beginPath();c.ellipse(bx,by,36,28,0,0,6.2832);c.clip();
+  actorAt(c,'shake',bx+Math.sin(t*2)*4,by+18,.62,still(t));
+  c.restore();
+  say(c,'ごちそうさま',28,50,112,128,92);
+  say(c,'まっくらだよー',286,48,108,300,92,13);
+  c.globalAlpha=.55+.45*Math.sin(t*3);c.fillStyle='#fffdf4';c.strokeStyle=INK;c.lineWidth=3;c.lineJoin='round';c.font="15px 'Dela Gothic One',sans-serif";c.textAlign='center';c.strokeText('ケプッ',122,132);c.fillText('ケプッ',122,132);c.globalAlpha=1;
+},
+// 木彫りの大グマ:くわえられたまま、おみやげに
+kibori(c,t){
+  c.fillStyle='#efe3cf';c.fillRect(0,0,400,210);
+  c.strokeStyle='rgba(120,80,40,.18)';c.lineWidth=2;for(let i=1;i<7;i++){c.beginPath();c.moveTo(0,i*30);c.lineTo(400,i*30);c.stroke()}
+  rr(c,16,14,122,28,2,'#fff',2.2);c.fillStyle=INK;c.font="14px 'Dela Gothic One',sans-serif";c.textAlign='center';c.textBaseline='middle';c.fillText('川のおみやげ',77,29);
+  c.fillStyle='#8d5e34';c.fillRect(0,176,400,34);line(c,[[0,176],[400,176]],2.4);
+  actorAt(c,'kibori',206,176,.74,still(0));
+  c.save();c.translate(322,118);c.rotate(Math.sin(t*1.6)*.05);
+  line(c,[[0,-26],[-22,-58]],1.6);rr(c,-30,-26,64,30,3,'#ffe63b',2.2);
+  c.fillStyle='#e3170a';c.font="14px 'Yusei Magic',sans-serif";c.textAlign='center';c.textBaseline='middle';c.fillText('3,980円',2,-10);c.restore();
+  say(c,'…うごけない',22,60,100,102,110);
+},
+};
+// ひな。口をぱくぱくさせて待っている
+function chick(c,x,y,t,o,dir=1){
+  const b=Math.sin(t*7+o),open=4+Math.abs(b)*7;
+  c.save();c.translate(x,y+b*2);c.scale(dir,1);
+  E(c,0,6,17,18,'#f4d35e',0,2);
+  poly(c,[[-9,-9],[-6,-20],[-1,-10]],'#f4d35e',1.6);
+  E(c,0,-12,13,13,'#f4d35e',0,2);
+  poly(c,[[-9,-13],[-26,-15-open],[-11,-9]],'#ff9a2e',1.8);
+  poly(c,[[-9,-9],[-25,-7+open],[-11,-7]],'#ff9a2e',1.8);
+  poly(c,[[-10,-12],[-22,-13-open*.5],[-22,-9+open*.5],[-10,-9]],'#e3372a',0);
+  dot(c,-3,-16,2.1);
+  c.restore();
+}
+// 親鳥に運ばれて、ひなの待つ巣へ
+function nest(c,t,bird,s){
+  sceneBack(c,'#a9d3ee','#e0eef2',210,'#e0eef2');
+  c.beginPath();c.moveTo(0,210);c.lineTo(0,120);c.lineTo(66,146);c.lineTo(120,176);c.lineTo(300,182);c.lineTo(400,150);c.lineTo(400,210);c.closePath();P(c,'#8e8778');
+  E(c,190,158,118,26,'#6e4c33',0,2.4);
+  actorAt(c,'shake',192,160,1.05,still(t));
+  chick(c,104,126,t,0,-1);chick(c,290,128,t,1.7);chick(c,252,116,t,3.1);
+  sweat(c,160,112,t);sweat(c,220,108,t,.5);
+  c.beginPath();c.moveTo(66,150);c.quadraticCurveTo(190,206,316,150);c.quadraticCurveTo(310,196,190,198);c.quadraticCurveTo(72,196,66,150);c.closePath();P(c,'#8a6248',2.4);
+  c.lineWidth=2;c.strokeStyle='#5a3d29';c.lineCap='round';for(let i=0;i<11;i++){const x=88+i*21;c.beginPath();c.moveTo(x-9,172+(i%3)*5);c.lineTo(x+10,167+((i+1)%3)*6);c.stroke()}
+  actorAt(c,bird,346,92,s,still(t));
+  say(c,'ごはんー!',16,44,88,84,86);
+  say(c,'ごはんじゃないよ!',118,14,146,196,56,13);
+}
+function table(c,y){
+  for(let i=0;i<9;i++){c.fillStyle=i%2?'#fff':'#e8574a';c.fillRect(40+i*36,y,36,30)}
+  c.lineWidth=2.2;c.strokeStyle=INK;c.strokeRect(40,y,324,30);
+}
+// クマのピクニック
+function picnic(c,t,bear,s){
+  sceneBack(c,'#a9d3ee','#d6ecd2',150,'#6f9a62');
+  poly(c,[[350,150],[376,70],[400,150]],'#2f6650',2);poly(c,[[8,150],[34,84],[60,150]],'#2f6650',2);
+  actorAt(c,bear,288,166,s,{...still(0),atk:.1});
+  table(c,160);
+  E(c,142,162,66,11,'#fff',0,2.2);
+  actorAt(c,'shake',142,178,1,still(t));
+  sweat(c,100,126,t);
+  say(c,'いただきまーす',196,26,118,276,66);
+}
+Object.assign(LOSE_SCENES,{
+kamome(c,t){nest(c,t,'kamome',1)},
+karasu(c,t){nest(c,t,'karasu',1)},
+washi(c,t){nest(c,t,'washi',.72)},
+konguma(c,t){picnic(c,t,'konguma',1.4)},
+higuma(c,t){picnic(c,t,'higuma',.8)},
+// ミンクの巣穴
+mink(c,t){
+  c.fillStyle='#7a5a3e';c.fillRect(0,0,400,210);
+  c.fillStyle='#6f9a62';c.fillRect(0,0,400,24);line(c,[[0,24],[400,24]],2.4);
+  E(c,200,120,186,76,'#3a2a22',0,2.4);
+  line(c,[[40,128],[300,128]],4,'#8d6a42');
+  [58,134,210].forEach((x,i)=>{actorAt(c,i===1?'shake':'gin',x+Math.sin(t*2+i)*1,128,.78,still(t+i));sweat(c,x+26,74,t,i*.3)});
+  rr(c,104,142,120,26,2,'#fff',2);c.fillStyle=INK;c.font="13px 'Dela Gothic One',sans-serif";c.textAlign='center';c.textBaseline='middle';c.fillText('冬のたくわえ',164,156);
+  actorAt(c,'mink',326,186,1.05,{...still(t),sw:Math.sin(t*3)});
+  say(c,'きれいにならんだ',232,44,130,316,82,13);
+},
+// アザラシの鼻の上
+azarashi(c,t){
+  sceneBack(c,'#bfe4ec','#e8f3df',150,'#1f7f95');
+  c.beginPath();c.moveTo(120,210);c.lineTo(150,172);c.lineTo(350,170);c.lineTo(380,210);c.closePath();P(c,'#7c7f83');
+  actorAt(c,'azarashi',256,176,1.1,still(t));
+  const y=86-Math.abs(Math.sin(t*3))*16;
+  c.save();c.translate(214,y);c.rotate(t*5);c.translate(0,32);drawActor(c,'shake',still(t));c.restore();
+  for(let i=0;i<3;i++){const a=(t*1.3+i*.33)%1;c.globalAlpha=1-a;c.lineWidth=2;c.strokeStyle='#fffdf4';c.beginPath();c.arc(214,y,26+a*12,i*2.1+t*3,i*2.1+t*3+1);c.stroke();c.globalAlpha=1}
+  say(c,'めがまわるー',32,44,104,120,86);
+},
+// モクズガニのハサミ
+kani(c,t){
+  sceneBack(c,'#2a8ea3','#176477',176,'#7a6a56');
+  actorAt(c,'shake',162+Math.sin(t*12)*1.5,188,1.45,still(t));
+  actorAt(c,'kani',282,194,2.1,{...still(t),atk:.1});
+  for(let i=0;i<2;i++){const a=(t*1.7+i*.5)%1;c.globalAlpha=1-a;c.fillStyle='#ffe63b';c.font="18px 'Dela Gothic One',sans-serif";c.textAlign='center';c.fillText('!',196+i*20,104-a*26);c.globalAlpha=1}
+  say(c,'いたたた!',26,32,94,98,74);
+},
+// 小さなウグイの通せんぼ
+ugui(c,t){
+  sceneBack(c,'#2a8ea3','#176477',176,'#7a6a56');
+  for(const[x,y,o]of[[58,120,0],[60,168,1],[116,96,2],[118,144,3],[120,190,4],[176,120,5],[178,168,6]]){c.save();c.translate(x,y+Math.sin(t*3+o)*2);c.scale(-.9,.9);drawActor(c,'ugui',still(t+o));c.restore()}
+  actorAt(c,'shake',312,176,1.3,still(t));
+  actorAt(c,'ikura',248,190,.6,still(t));
+  sweat(c,262,112,t);
+  say(c,'ここは通さないよ',22,18,132,110,58,13);
+  say(c,'えー…',284,60,62,308,98);
+},
+// 釣り人との記念写真
+tsuribito(c,t){
+  sceneBack(c,'#a9d3ee','#e0eef2',160,'#6f9a62');
+  c.fillStyle='#2a8ea3';c.fillRect(0,132,400,28);
+  actorAt(c,'tsuribito',292,188,1.05,still(0));
+  line(c,[[244,104],[244,116]],1.6,'#f7f7f2');
+  c.save();c.translate(244,118);c.rotate(Math.sin(t*2.4)*.08-1.5708);c.scale(.95,.95);c.translate(0,32);drawActor(c,'shake',still(t));c.restore();
+  const f=(t*.6)%1;if(f<.12){c.fillStyle=`rgba(255,255,255,${.85*(1-f/.12)})`;c.fillRect(0,0,400,210)}
+  c.lineWidth=4;c.strokeStyle='#fffdf4';for(const[x,y,a,b]of[[12,12,1,1],[388,12,-1,1],[12,198,1,-1],[388,198,-1,-1]]){c.beginPath();c.moveTo(x+a*26,y);c.lineTo(x,y);c.lineTo(x,y+b*26);c.stroke()}
+  c.fillStyle='#fffdf4';c.strokeStyle=INK;c.lineWidth=3;c.lineJoin='round';c.font="15px 'Dela Gothic One',sans-serif";c.textAlign='center';c.strokeText('カシャッ',86,44);c.fillText('カシャッ',86,44);
+  say(c,'今日の大物!',44,72,104,132,110);
+},
+// 漁師の箱づめ
+ryoshi(c,t){
+  sceneBack(c,'#bfe4ec','#e8f3df',148,'#1f7f95');
+  c.fillStyle='#6a4b2d';c.fillRect(0,176,400,34);line(c,[[0,176],[400,176]],2.4);
+  [84,146,208].forEach((x,i)=>{c.save();c.translate(x,112+Math.sin(t*2+i)*1.5);c.rotate(1.5708);c.scale(.82,.82);c.translate(0,32);drawActor(c,'shake',still(t+i));c.restore();sweat(c,x+18,76,t,i*.3)});
+  for(let i=0;i<8;i++)rr(c,54+i*24,112+(i%2)*5,20,16,3,'#d9f2f2',1.6);
+  rr(c,44,122,216,58,3,'#f7f7f2',2.6);
+  rr(c,104,136,96,30,2,'#e3170a',2);c.fillStyle='#fff';c.font="18px 'Dela Gothic One',sans-serif";c.textAlign='center';c.textBaseline='middle';c.fillText('特選',152,152);
+  actorAt(c,'ryoshi',332,178,1.1,still(0));
+  say(c,'つめたーい',32,20,92,104,60);
+},
+// 板前の塩
+itamae(c,t){
+  c.fillStyle='#f2ece0';c.fillRect(0,0,400,210);
+  c.fillStyle='#d9331f';c.fillRect(0,0,400,12);line(c,[[0,12],[400,12]],2.4);
+  actorAt(c,'itamae',322,160,1,still(0));
+  c.fillStyle='#8a5a34';c.fillRect(0,160,400,50);line(c,[[0,160],[400,160]],2.4);
+  rr(c,52,146,212,18,3,'#e5c79a',2.2);
+  actorAt(c,'shake',156,172,1.3,still(t));
+  c.save();c.translate(214,62);c.rotate(.7+Math.sin(t*9)*.09);rr(c,-12,-18,24,34,3,'#fffdf4',2.2);c.fillStyle='#e3170a';c.font="12px 'Dela Gothic One',sans-serif";c.textAlign='center';c.textBaseline='middle';c.fillText('塩',0,0);c.restore();
+  c.fillStyle='#fff';c.strokeStyle='rgba(23,36,44,.45)';c.lineWidth=.8;
+  for(let i=0;i<14;i++){const a=(t*1.4+i*.17)%1,x=198-a*60+Math.sin(i*2.4)*16,y=78+a*62;c.fillRect(x,y,3,3);c.strokeRect(x,y,3,3)}
+  say(c,'しょっぱい!',24,34,102,92,76);
+},
+});
+function drawLoseScene(c,id,t){c.save();LOSE_SCENES[id](c,t);c.restore()}
+
 function seeded(a){return()=>{a=(a*1664525+1013904223)|0;return(a>>>0)/4294967296}}
 function makeBackground(ch,L,VH,WATER_Y,GROUND,chapters){
   const pal=chapters[ch],S=2;
@@ -330,5 +557,5 @@ function makeBackground(ch,L,VH,WATER_Y,GROUND,chapters){
   for(let i=0;i<L/7;i++){const x=R()*L,y=GROUND+14+R()*34,r=2+R()*5;n.fillStyle=['#9c8d7a','#857766','#b3a692','#6f6355'][R()*4|0];n.beginPath();n.ellipse(x,y,r*1.5,r,0,0,6.3);n.fill();if(r>4.5){n.lineWidth=1.2;n.strokeStyle='rgba(23,36,44,.5)';n.stroke()}}
   return{far,near,pal};
 }
-return{INK,drawActor,drawHatchery,drawEnemyBase,makeBackground,DRAW,E,rr,poly,line,dot};
+return{INK,drawActor,drawSchool,drawEnemyBase,drawLoseScene,makeBackground,DRAW,E,rr,poly,line,dot};
 })();

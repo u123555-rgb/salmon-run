@@ -108,7 +108,7 @@ const STOM={max:8,income:l=>14+9*(l-1),cap:l=>500+300*(l-1),cost:l=>40+80*l};
 const lvMul=l=>1+.2*(l-1);
 const lvCost=l=>Math.round(40*Math.pow(l,1.55));
 const META={
-wall:{n:'ふ化場の壁',txt:'拠点の体力 +20%',max:10},
+wall:{n:'群れのきずな',txt:'群れの体力 +20%',max:10},
 flood:{n:'鉄砲水',txt:'たまる時間 -3秒、威力 +50%',max:8},
 stom:{n:'オキアミの群れ',txt:'オキアミの収入 +8%',max:10},
 };
@@ -134,7 +134,7 @@ class Battle{
     this.slots=cfg.slots.map(x=>({id:x.id,lv:x.lv,def:UNITS[x.id],cd:0}));
     this.flood={c:0,need:cfg.floodNeed,dmg:cfg.floodDmg};
     this.rules=s.rules.map(r=>({...r,on:false,cnt:0,next:0}));
-    this.kills=0;
+    this.kills=0;this.lastHit=null;
   }
   get income(){return STOM.income(this.stom)*this.cfg.income}
   get cap(){return STOM.cap(this.stom)}
@@ -273,7 +273,7 @@ class Battle{
     const d=a.def;let dmg=a.atk;
     if(t.isBase){
       if(a.side<0&&this.over)return;
-      t.hp-=dmg;t.shake=.2;this.fx.push({k:'hit',x:t.x+a.dir*-30,y:GROUND-60});return;
+      t.hp-=dmg;t.shake=.2;if(a.side<0)this.lastHit=a.id;this.fx.push({k:'hit',x:t.x+a.dir*-30,y:GROUND-60});return;
     }
     if(t.state==='kb')return;
     if(d.vs&&d.vs[t.def.trait])dmg*=d.vs[t.def.trait];

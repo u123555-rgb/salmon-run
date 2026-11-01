@@ -7,17 +7,36 @@ const fmt=n=>Math.floor(n).toLocaleString('ja-JP');
 const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const KEY='salmon-run-v1',SPIN=200,MAXLV=20;
 const fresh=()=>({ikura:300,own:{shake:1,ikura:1,aramaki:1},team:['shake','ikura','aramaki'],prog:[0,0,0],meta:{wall:0,flood:0,stom:0},lap:0,tip:false,snd:true});
+// 更新で項目が増減しても、古いセーブを今の形に直して読む
+function migrate(s){
+  const f=fresh(),own={};
+  for(const[k,v]of Object.entries(s.own))if(UNITS[k]&&v>0)own[k]=Math.min(MAXLV,v|0);
+  if(!Object.keys(own).length)Object.assign(own,f.own);
+  const team=(Array.isArray(s.team)?s.team:[]).filter(k=>own[k]);
+  return{...f,...s,own,team:team.length?team:Object.keys(own).slice(0,3),
+    prog:f.prog.map((_,i)=>Math.min(STAGES.length,Math.max(0,((s.prog||[])[i])|0))),
+    meta:{...f.meta,...s.meta},lap:Math.min(LAPS.length-1,Math.max(0,s.lap|0))};
+}
 let save=fresh();
-try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.own)save={...fresh(),...s}}catch(e){}
+try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.own)save=migrate(s)}catch(e){}
 const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(save))}catch(e){}};
 
 /* 音 */
-const Snd={ac:null,timer:null,step:0,
+const Snd={ac:null,timer:null,step:0,mode:'normal',
   wake(){if(!save.snd)return;if(!this.ac){const C=window.AudioContext||window.webkitAudioContext;if(!C)return;this.ac=new C()}if(this.ac.state!=='running')this.ac.resume();this.bgm()},
   tone(f,d=.1,type='triangle',v=.05,when=0,to){if(!this.ac||!save.snd)return;const t=this.ac.currentTime+when,o=this.ac.createOscillator(),g=this.ac.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(to)o.frequency.exponentialRampToValueAtTime(to,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0008,t+d);o.connect(g).connect(this.ac.destination);o.start(t);o.stop(t+d+.02)},
   noise(d=.3,v=.08,fc=900){if(!this.ac||!save.snd)return;const n=this.ac.sampleRate*d|0,b=this.ac.createBuffer(1,n,this.ac.sampleRate),a=b.getChannelData(0);for(let i=0;i<n;i++)a[i]=(Math.random()*2-1)*(1-i/n);const s=this.ac.createBufferSource(),f=this.ac.createBiquadFilter(),g=this.ac.createGain();s.buffer=b;f.type='lowpass';f.frequency.value=fc;g.gain.value=v;s.connect(f).connect(g).connect(this.ac.destination);s.start()},
-  bgm(){if(this.timer)return;const sc=[262,294,330,392,440,523],pat=[0,2,4,2,3,1,2,0,4,5,4,2,3,2,1,0];
+  bgm(){if(this.timer)return;
+    if(this.mode==='boss'){const bass=[110,110,131,110,147,156,147,131],mel=[440,0,523,494,440,0,392,415];
+      this.timer=setInterval(()=>{if(!save.snd||document.hidden)return;const i=this.step++%32;
+        if(i%2===0)this.tone(bass[(i/2)%8]/2,.15,'sawtooth',.045);
+        if(i%4===0)this.tone(92,.12,'sine',.08,0,45);
+        if(i%4===2){const m=mel[(i>>2)%8];if(m)this.tone(m,.15,'square',.02)}
+        if(i%16===12)this.tone(880,.28,'square',.012,0,740)},125);
+      return}
+    const sc=[262,294,330,392,440,523],pat=[0,2,4,2,3,1,2,0,4,5,4,2,3,2,1,0];
     this.timer=setInterval(()=>{if(!save.snd||document.hidden)return;const i=this.step++%32;if(i%2===0)this.tone(sc[pat[(i/2)%16]],.2,'triangle',.022);if(i%8===0)this.tone(sc[[0,3,2,3][(i/8)%4]]/2,.42,'sine',.04)},190)},
+  setBgm(mode){if(this.mode===mode)return;this.mode=mode;this.step=0;if(this.timer){this.stop();this.bgm()}},
   stop(){clearInterval(this.timer);this.timer=null},
   spawn(){this.tone(520,.08,'square',.025,0,780)},hit(){this.noise(.05,.04,1600)},big(){this.tone(120,.2,'sawtooth',.06,0,50);this.noise(.15,.08,700)},
   flood(){this.noise(1.1,.16,520);this.tone(90,.9,'sawtooth',.05,0,40)},
@@ -116,7 +135,7 @@ function renderIke(){
     b.onclick=()=>{sel=id;renderIke();document.querySelector('.detail').scrollIntoView({block:'nearest'})};grid.appendChild(b)}
   const det=document.createElement('div');det.className='detail';det.appendChild(detailOf(sel));
   wrap.append(grid,det);p.appendChild(wrap);
-  const h2=document.createElement('h2');h2.className='mt';h2.textContent='ふ化場の強化';p.appendChild(h2);
+  const h2=document.createElement('h2');h2.className='mt';h2.textContent='群れの強化';p.appendChild(h2);
   const ms=document.createElement('div');ms.className='metas';
   for(const[k,m]of Object.entries(META)){const l=save.meta[k],c=metaCost(l),el=document.createElement('div');el.className='meta';
     el.innerHTML=`<b>${m.n} Lv${l}</b><small>${m.txt}</small>`;
@@ -196,11 +215,11 @@ function clampCam(){if(B)cam=Math.max(0,Math.min(B.L-vw,cam))}
 new ResizeObserver(fit).observe(field);
 function startBattle(si,lap){
   B=new Battle(si,lap,battleCfg(save));bg=A.makeBackground(STAGES[si].ch,B.L,VH,WATER_Y,GROUND,CHAPTERS);
-  vfx=[];slotCache=[];paused=false;userPan=0;endQueued=false;banner=null;speed=1;$('btn-speed').textContent='×1';$('over').hidden=true;
+  scene=null;Snd.setBgm('normal');vfx=[];slotCache=[];paused=false;userPan=0;endQueued=false;banner=null;speed=1;$('btn-speed').textContent='×1';$('over').hidden=true;
   $('hud-stage').textContent=`${STAGES[si].km}km ${STAGES[si].n}`;
   buildSlots();show('battle');fit();cam=B.L-vw;clampCam();
   const tip=$('tip');
-  if(!save.tip){tip.hidden=false;tip.textContent='下の値札を押すと仲間が出ます。オキアミは時間でたまります。左の敵の拠点を壊せば勝ちです。画面を押してドラッグすると川を見渡せます。';tip.onclick=()=>{tip.hidden=true};save.tip=true;persist();setTimeout(()=>{tip.hidden=true},9000)}else tip.hidden=true;
+  if(!save.tip){tip.hidden=false;tip.textContent='下の値札を押すと仲間が出ます。オキアミは右上の胃袋にたまり、満腹になると止まります。左下で胃袋を広げられます。左の敵の拠点を壊せば勝ちです。';tip.onclick=()=>{tip.hidden=true};save.tip=true;persist();setTimeout(()=>{tip.hidden=true},9000)}else tip.hidden=true;
 }
 // 指が触れた瞬間に反応させる。キーボード操作のclickはdetailが0になる
 function press(el,fn){el.onpointerdown=e=>{if(e.pointerType!=='mouse'||e.button===0)fn()};el.onclick=e=>{if(e.detail===0)fn()}}
@@ -216,7 +235,7 @@ function buildSlots(){
   for(let i=B.slots.length;i<10;i++){const b=document.createElement('div');b.className='slot empty';w.appendChild(b)}
 }
 function deploy(i){if(B&&!paused&&B.deploy(i))Snd.spawn()}
-function upStom(){if(B&&!paused&&B.upStom())Snd.coin()}
+function upStom(){if(B&&!paused&&B.upStom()){Snd.coin();const m=$('hud-money');m.classList.remove('grow');void m.offsetWidth;m.classList.add('grow')}}
 function fire(){if(B&&!paused&&B.fire())Snd.flood()}
 press($('btn-stom'),upStom);press($('btn-flood'),fire);
 $('btn-speed').onclick=()=>{speed=speed===1?2:1;$('btn-speed').textContent='×'+speed};
@@ -226,10 +245,36 @@ function togglePause(){
   if(paused)overlay(`<h2>一時停止</h2><p>${STAGES[B.si].n}</p><div class="row"><button class="pop" id="o-resume">続ける</button><button class="pop ghost" id="o-quit">川をおりる</button></div>`,{'o-resume':togglePause,'o-quit':quit});
   else $('over').hidden=true;
 }
-function quit(){B=null;paused=false;$('over').hidden=true;show('menu')}
-function overlay(html,acts,extra){const o=$('over'),c=$('over-card');c.innerHTML=html;if(extra)c.insertBefore(extra,c.children[1]||null);for(const[k,f]of Object.entries(acts))$(k).onclick=f;o.hidden=false}
+function quit(){B=null;scene=null;paused=false;Snd.setBgm('normal');$('over').hidden=true;show('menu')}
+function overlay(html,acts,extra,wide){const o=$('over'),c=$('over-card');c.className='card'+(wide?' scene':'');c.innerHTML=html;if(extra)c.insertBefore(extra,c.children[1]||null);for(const[k,f]of Object.entries(acts))$(k).onclick=f;o.hidden=false}
+// ボスに負けた時の見出しと文章。絵は art.js の LOSE_SCENES
+const LOSE={
+todo:{h:'座布団にされた',p:'トド親分の特等席は、鮭の上だった。あたたかくて、ちょっと重い。親分は昼寝を始めた。起きるまで動けない。'},
+amimoto:{h:'大漁にされた',p:'みんなまとめて網の中。網元はえびす顔だ。明日の朝市で「活きがいい」と評判になるらしい。'},
+taisho:{h:'本日のおすすめになった',p:'気がつけばシャリの上。皿はゆっくり回っている。向かいの席の人と目が合った。気まずい。'},
+nushi:{h:'おいしくいただかれた',p:'滝のヌシのおなかの中は、暗くて、あたたかくて、意外と広い。ヌシは満足して昼寝を始めた。'},
+kibori:{h:'おみやげになった',p:'気がつけば木彫りになって、口にくわえられていた。駅の売店で3,980円。買ってくれた人の玄関で、今日も川を見ている。'},
+kamome:{h:'ひなのごはんになった',p:'カモメに運ばれて、崖の上の巣へ。ひなたちが大きな口をあけて待っていた。「ごはんじゃないよ!」の声は、ぴよぴよにかき消された。'},
+karasu:{h:'ひなのごはんになった',p:'カラスに運ばれて、高い場所の巣へ。ひなたちは元気いっぱいだ。「ごはんじゃないよ!」と言っても、聞いてくれそうにない。'},
+washi:{h:'ひなのごはんになった',p:'オジロワシに運ばれて、とても高い巣へ。景色は最高だ。ひなたちの食欲も最高だ。'},
+konguma:{h:'おやつにされた',p:'子グマは鮭をお皿にのせて、きちんと手を合わせた。とても礼儀正しい。逃げるなら今だ。'},
+higuma:{h:'おやつにされた',p:'ヒグマは川原でピクニックの用意をしていた。テーブルクロスまで敷いてある。主役はきみたちらしい。'},
+mink:{h:'たくわえにされた',p:'ミンクの巣穴には、冬のための食べものがきれいにならんでいた。その列に、きみたちも加わった。春まで待機だ。'},
+azarashi:{h:'ボールにされた',p:'アザラシの鼻の上で、ぐるぐる回された。お客さんがいれば拍手がもらえたはずだ。目が回って、まっすぐ泳げない。'},
+kani:{h:'はさまれた',p:'モクズガニのハサミは、尾びれをつかんだらはなさない。カニは横にしか歩けないので、川のはしまで連れていかれた。'},
+ugui:{h:'通せんぼされた',p:'小さなウグイたちがずらりとならんで、川をふさいだ。ひとりひとりは小さいが、数がすごかった。'},
+tsuribito:{h:'記念写真を撮られた',p:'釣り人はとてもうれしそうだ。写真は「今日の大物」として壁にかざられるらしい。せめて、いい顔をしておこう。'},
+ryoshi:{h:'箱づめにされた',p:'氷といっしょに箱の中へ。ふたが閉まる前に見えたのは「特選」の文字だった。ちょっとうれしい。'},
+itamae:{h:'塩をふられた',p:'板前はていねいに塩をふった。「しょっぱい!」とさけんだが、ちょうどいい塩かげんらしい。'},
+};
+function loseCanvas(id){
+  const cv=document.createElement('canvas'),S=2;cv.width=400*S;cv.height=210*S;cv.className='scene-cv';
+  const c=cv.getContext('2d');
+  scene=()=>{c.setTransform(S,0,0,S,0,0);c.clearRect(0,0,400,210);A.drawLoseScene(c,id,clock)};scene();
+  return cv;
+}
 function finish(){
-  const b=B;
+  const b=B;Snd.setBgm('normal');
   if(b.over==='win'){
     Snd.win();
     const first=b.si===save.prog[b.lap],gain=reward(b.si,b.lap,first);save.ikura+=gain;let unlocked=null;
@@ -245,7 +290,9 @@ function finish(){
     overlay(html,{'o-next':quit},extra);
   }else{
     Snd.lose();const gain=Math.round(reward(b.si,b.lap,false)*.2);save.ikura+=gain;persist();
-    overlay(`<h2>流された</h2><p>ふ化場がこわされた。慰めのイクラ ${fmt(gain)} をもらった。いけすで仲間を強くして、もう一度。</p><div class="row"><button class="pop" id="o-again">もう一度</button><button class="pop ghost" id="o-next">川へもどる</button></div>`,{'o-next':quit,'o-again':()=>startBattle(b.si,b.lap)});
+    const boss=b.es.find(e=>e.def.boss&&LOSE[e.id]),who=boss?boss.id:b.lastHit,L=LOSE[who];
+    const body=L?L.p:'鮭の群れがちりぢりになった。';
+    overlay(`<h2>${L?L.h:'流された'}</h2><p>${body}慰めのイクラ ${fmt(gain)} をもらった。いけすで仲間を強くして、もう一度。</p><div class="row"><button class="pop" id="o-again">もう一度</button><button class="pop ghost" id="o-next">川へもどる</button></div>`,{'o-next':quit,'o-again':()=>startBattle(b.si,b.lap)},L?loseCanvas(who):null,!!L);
   }
 }
 
@@ -330,7 +377,7 @@ function drawDead(c,f){
   }
 }
 function drawBaseHp(c,b,label){
-  const y=b.side>0?104:74,w=86,x=b.x-w/2;
+  const y=b.side>0?144:74,w=86,x=b.x-w/2;
   c.fillStyle='rgba(13,52,64,.85)';c.fillRect(x,y,w,18);
   c.fillStyle=b.side>0?'#ff8a5c':'#e9e4d0';c.fillRect(x+2,y+2,(w-4)*Math.max(0,b.hp/b.max),14);
   c.font="11px 'Zen Maru Gothic','Hiragino Sans',sans-serif";c.textAlign='center';c.textBaseline='middle';c.fillStyle='#fff';c.strokeStyle=A.INK;c.lineWidth=3;c.strokeText(label,b.x,y+9);c.fillText(label,b.x,y+9);
@@ -347,7 +394,7 @@ function drawField(dt){
   c.drawImage(bg.near,0,0,B.L,VH);
   const ch=B.s.ch;
   c.save();c.translate(B.ebase.x+(B.ebase.shake>0?Math.sin(clock*70)*3:0),0);A.drawEnemyBase(c,ch,clock,GROUND+6);c.restore();
-  c.save();c.translate(B.pbase.x+(B.pbase.shake>0?Math.sin(clock*70)*3:0),0);A.drawHatchery(c,clock,GROUND+6);c.restore();
+  c.save();c.translate(B.pbase.x+(B.pbase.shake>0?Math.sin(clock*70)*3:0),0);A.drawSchool(c,clock,GROUND+6,B.pbase.hp/B.pbase.max);c.restore();
   const all=[...B.us,...B.es].sort((a,b)=>a.lane-b.lane);
   for(const f of vfx)if(f.k==='die')drawDead(c,f);
   for(const e of all)drawOne(c,e,clock);
@@ -386,7 +433,9 @@ function drawField(dt){
 }
 let slotCache=[];
 function syncHud(){
-  $('hud-money').innerHTML=`${fmt(B.money)}<small> / ${fmt(B.cap)}</small>`;
+  const full=B.money>=B.cap,hm=$('hud-money');
+  $('m-now').textContent=fmt(B.money);$('m-cap').textContent=` / ${fmt(B.cap)}`;
+  hm.style.setProperty('--c',B.money/B.cap);hm.classList.toggle('full',full);
   B.slots.forEach((s,i)=>{const el=$('slot-'+i);if(!el)return;
     const poor=B.money<s.def.cost,waiting=s.cd>0,done=(1-s.cd/s.def.cd).toFixed(2),key=`${poor}${waiting}${done}`;
     if(slotCache[i]===key)return;slotCache[i]=key;
@@ -394,7 +443,7 @@ function syncHud(){
     el.classList.toggle('poor',poor);el.classList.toggle('cooling',waiting);
     el._bar.style.setProperty('--c',done);el._sec.textContent=Math.ceil(s.cd)});
   const st=$('btn-stom'),fl=$('btn-flood'),mx=B.stom>=STOM.max;
-  st.querySelector('b').textContent=`胃袋 Lv${B.stom}`;st.querySelector('small').textContent=mx?'最大':`${STOM.cost(B.stom)}で拡大`;
+  st.querySelector('b').textContent=`胃袋 Lv${B.stom}`;st.querySelector('small').textContent=mx?'最大':`${STOM.cost(B.stom)}で+${STOM.cap(B.stom+1)-STOM.cap(B.stom)}`;
   st.style.setProperty('--c',mx?1:Math.min(1,B.money/STOM.cost(B.stom)));st.classList.toggle('ready',B.canUp());
   const ready=B.canFire();fl.classList.toggle('ready',ready);fl.style.setProperty('--c',B.flood.c/B.flood.need);fl.querySelector('small').textContent=ready?'押すと発射':`${Math.ceil(B.flood.need-B.flood.c)}秒`;
 }
@@ -411,9 +460,11 @@ function tickBattle(dt){
   vfx=vfx.filter(f=>f.t<f.life);
   if(!paused){shakeT=Math.max(0,shakeT-dt);flash=Math.max(0,flash-dt);if(banner)banner.t+=dt}
   drawField(dt);syncHud();
+  Snd.setBgm(!B.over&&B.es.some(e=>e.def.boss)?'boss':'normal');
+  if(scene)scene();
   if(B.over&&!endQueued){endQueued=true;setTimeout(finish,900)}
 }
-let acc=0;
+let acc=0,scene=null;
 
 /* タイトルの行列 */
 const par=$('parade'),pctx=par.getContext('2d');
@@ -451,6 +502,6 @@ sndBtn.onclick=()=>{save.snd=!save.snd;persist();sndLabel();if(save.snd)Snd.wake
 for(const ev of['touchend','pointerup'])addEventListener(ev,()=>Snd.wake(),{passive:true});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&view==='battle'&&B&&!B.over&&!paused)togglePause()});
 show('title');
-window.__g={get B(){return B},startBattle,get save(){return save},setTab,show};
+window.__g={get B(){return B},startBattle,get save(){return save},setTab,show,Snd,quit};
 requestAnimationFrame(frame);
 })();
