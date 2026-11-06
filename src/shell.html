@@ -180,6 +180,7 @@ h2.mt{margin-top:26px}
 .side{display:flex;flex-direction:column;gap:4px;min-width:0}
 .side .big{flex:1}
 .card .note{font-size:13px;color:#5b6b70}
+#clash{position:absolute;inset:0;z-index:7;background:transparent;border:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent;cursor:pointer}
 #ad{position:absolute;inset:0;z-index:8;background:#000}
 #ad-cv{position:absolute;inset:0;width:100%;height:100%;display:block}
 #ad .ad-tag,#ad .ad-left{position:absolute;top:10px;font-family:var(--body);font-weight:900;font-size:13px;padding:3px 9px;background:rgba(23,36,44,.82);color:#fff}
@@ -260,7 +261,7 @@ h2.mt{margin-top:26px}
 <div id="app">
   <section class="view" id="v-title">
     <canvas id="parade" aria-hidden="true"></canvas>
-    <small class="ver">ver.2026.11.06-02</small>
+    <small class="ver">ver.2026.11.06-03</small>
     <div class="title-box gut">
       <h1>サーモン<br>大遡上</h1>
       <p>生まれた川まで、あと268km。</p>
@@ -306,6 +307,7 @@ h2.mt{margin-top:26px}
       </div>
     </div>
     <div class="over gut" id="over" hidden><div class="card" id="over-card"></div></div>
+    <button id="clash" hidden aria-label="連打して押し合う"></button>
     <div id="ad" hidden><canvas id="ad-cv"></canvas><span class="ad-tag">広告(仮)</span><span class="ad-left" id="ad-left">あと5秒</span></div>
   </section>
   <section class="view" id="v-ending" hidden>

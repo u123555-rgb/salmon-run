@@ -797,20 +797,44 @@ function edSea(c,v){
   ebub(c,'いってらっしゃーい!',W*.2,250,W*.17,290,efade(v,1.4,6.6,.4));
   eact(c,'kamome',W*.86+Math.sin(v*.7)*20,124+Math.sin(v*2.2)*8,.75,{t:v,sw:0,atk:0,roll:0},1);
   ecap(c,'いってらっしゃい。',60,efade(v,1,5));
-  ecap(c,ED.lap<2?'4年後、この子たちが帰ってくる。':'川は、これからもつづいていく。',60,efade(v,5.4,10.2));
-  if(v>10.6){
+  ecap(c,ED.lap<3?'4年後、この子たちが帰ってくる。':'川は、これからもつづいていく。',60,efade(v,5.4,10.2));
+  if(v>10.6&&ED.lap!==2){
     const a=esm((v-10.6)/.5),s=1+.3*(1-esm((v-10.6)/.4));
     c.save();c.globalAlpha=a;c.translate(W/2,98);c.scale(s,s);c.rotate(-.04);c.font="56px 'Dela Gothic One',sans-serif";c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';
     c.fillStyle=INK;c.fillText('おわり',4,5);c.lineWidth=8;c.strokeStyle=INK;c.strokeText('おわり',0,0);c.fillStyle='#ff8a5c';c.fillText('おわり',0,0);c.restore();
     ecap(c,'あそんでくれて、ありがとう。',150,esm((v-11.4)/.6),20);
   }
 }
-const ED_T2=14,ED_T3=26,ED_T4=ED_T3+ED_RIVER,ENDING_LEN=ED_T4+13;
+// 8年後のエンディングだけ、最後にボスたちが「次こそ」と決意する場面をつけて、12年後(ハード)につなぐ
+const VOWS=[['todo','次こそ、のがさんぞ!',.5],['amimoto','次は、もっと大きな網を用意する',.62],['taisho','次は特上のネタにしてやる!',.62],['nushi','滝を、もっと高くしておこう',.42],['kibori','次こそ、本物の鮭をくわえる',.4]];
+function edVow(c,v){
+  const W=ED.W;
+  let g=c.createLinearGradient(0,0,0,250);g.addColorStop(0,'#2b2350');g.addColorStop(1,'#a8577a');c.fillStyle=g;c.fillRect(0,0,W,360);
+  E(c,W*.82,66,24,24,'#fff3c4',0,0);E(c,W*.82+9,60,20,20,'#2b2350',0,0);
+  for(let i=0;i<24;i++){c.globalAlpha=.4+.4*Math.sin(v*2+i);dot(c,hz(i)*W,hz(i+.5)*150,1.4,'#fffdf4')}c.globalAlpha=1;
+  c.fillStyle='#4a3a5a';c.fillRect(0,250,W,110);line(c,[[0,250],[W,250]],2);
+  c.fillStyle='#24506a';c.fillRect(0,318,W,42);line(c,[[0,318],[W,318]],2);
+  const on=i=>efade(v,1+i*2.1,3.3+i*2.1,.3),all=efade(v,11.3,14.3,.4);
+  // しゃべっているボスの足元だけ明るくする
+  VOWS.forEach(([id,s,k],i)=>{const x=W*(.13+i*.185),sp=on(i);
+    if(sp>0){c.save();c.globalAlpha=.35*sp;E(c,x,300,58,14,'#fff3c4',0,0);c.restore()}
+    eact(c,id,x,302-sp*6,k,{t:v+i,sw:0,atk:sp>.5?.5+.5*Math.sin(v*8):0,roll:0},1);
+    ebub(c,s,x,150-(i%2)*34,x,240-(i%2)*20,sp,Math.min(14,(W-40)/(s.length+2)))});
+  ebub(c,'12年後、かならず捕まえる!',W/2,120,W/2,210,all,18);
+  ecap(c,'ボスたちは、それぞれの守護神にたのみに行った。',40,efade(v,12.6,16,.5),18);
+  if(v>14.2){const a=esm((v-14.2)/.5),sc=1+.3*(1-esm((v-14.2)/.4));
+    c.save();c.globalAlpha=a;c.translate(W/2,130);c.scale(sc,sc);c.rotate(-.04);c.font="52px 'Dela Gothic One',sans-serif";c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';
+    c.fillStyle=INK;c.fillText('つづく',4,5);c.lineWidth=8;c.strokeStyle=INK;c.strokeText('つづく',0,0);c.fillStyle='#ff8a5c';c.fillText('つづく',0,0);c.restore();
+    ecap(c,'「12年後の遡上(ハード)」がひらいた',186,esm((v-14.8)/.6),18)}
+}
+const ED_T2=14,ED_T3=26,ED_T4=ED_T3+ED_RIVER,ENDING_LEN=ED_T4+13,ED_T5=ED_T4+11,VOW_LEN=18;
+const endingLen=lap=>lap===2?ED_T5+VOW_LEN:ENDING_LEN;
 function drawEnding(c,t,W,lap){
   ED.W=W;ED.lap=lap;c.save();
-  if(t<ED_T2)edSpawn(c,t);else if(t<ED_T3)edHatch(c,t-ED_T2);else if(t<ED_T4)edRiver(c,t-ED_T3);else edSea(c,t-ED_T4);
+  const vow=lap===2&&t>=ED_T5;
+  if(t<ED_T2)edSpawn(c,t);else if(t<ED_T3)edHatch(c,t-ED_T2);else if(t<ED_T4)edRiver(c,t-ED_T3);else if(!vow)edSea(c,t-ED_T4);else edVow(c,t-ED_T5);
   // 場面の切り替えは暗転でつなぐ
-  let k=1-t/.9;for(const b of[ED_T2,ED_T3,ED_T4])k=Math.max(k,1-Math.abs(t-b)/.7);
+  let k=1-t/.9;for(const b of lap===2?[ED_T2,ED_T3,ED_T4,ED_T5]:[ED_T2,ED_T3,ED_T4])k=Math.max(k,1-Math.abs(t-b)/.7);
   if(k>0){c.fillStyle=`rgba(13,30,38,${Math.min(1,k*1.25)})`;c.fillRect(0,0,W,360)}
   c.restore();
 }
@@ -849,5 +873,5 @@ function makeBackground(ch,L,VH,WATER_Y,GROUND,chapters){
   for(let i=0;i<L/7;i++){const x=R()*L,y=GROUND+14+R()*34,r=2+R()*5;n.fillStyle=['#9c8d7a','#857766','#b3a692','#6f6355'][R()*4|0];n.beginPath();n.ellipse(x,y,r*1.5,r,0,0,6.3);n.fill();if(r>4.5){n.lineWidth=1.2;n.strokeStyle='rgba(23,36,44,.5)';n.stroke()}}
   return{far,near,pal};
 }
-return{INK,drawActor,drawSchool,drawEnemyBase,drawLoseScene,drawGuardian,drawEnding,ENDING_LEN,makeBackground,DRAW,E,rr,poly,line,dot};
+return{INK,drawActor,drawSchool,drawEnemyBase,drawLoseScene,drawGuardian,drawEnding,ENDING_LEN,endingLen,makeBackground,DRAW,E,rr,poly,line,dot};
 })();

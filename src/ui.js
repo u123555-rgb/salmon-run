@@ -1,12 +1,12 @@
 (()=>{
 'use strict';
 const G=window.SALMON,A=window.SALMON_ART;
-const{VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle}=G;
+const{VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,BGOD,FLOE_V,CLASH_T,CLASH_RATE,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle}=G;
 const $=id=>document.getElementById(id);
 const fmt=n=>Math.floor(n).toLocaleString('ja-JP');
 const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
-const KEY='salmon-run-v1',SPIN=200,MAXLV=20;
-const fresh=()=>({ikura:300,own:{shake:1,ikura:1,aramaki:1},team:['shake','ikura','aramaki'],prog:[0,0,0],meta:{wall:0,flood:0,stom:0},lap:0,tip:false,snd:true,fuse:[]});
+const KEY='salmon-run-v1',SPIN=200,MAXLV=30;
+const fresh=()=>({ikura:300,own:{shake:1,ikura:1,aramaki:1},team:['shake','ikura','aramaki'],prog:[0,0,0,0],meta:{wall:0,flood:0,stom:0},lap:0,tip:false,snd:true,fuse:[]});
 // 更新で項目が増減しても、古いセーブを今の形に直して読む
 function migrate(s){
   const f=fresh(),own={};
@@ -84,6 +84,14 @@ const Snd={ac:null,timer:null,step:0,mode:'normal',
   heal(w=0){[1046,1318,1568].forEach((f,i)=>this.tone(f,.4,'sine',.03,w+i*.07))},
   // 出力までの遅れ。分かる端末だけ、その分だけ早めに鳴らす
   lag(){const a=this.ac;return a?Math.min(.15,a.outputLatency||a.baseLatency||0):0},
+  // ボスの守護神。低く下がっていく不気味な音
+  bgod(){[220,208,196,185,175].forEach((f,i)=>this.tone(f,.5,'sawtooth',.045,i*.12));this.noise(1.2,.1,400)},
+  bghit(id){
+    if(id==='todo'){this.noise(.6,.12,3200);this.tone(1400,.35,'triangle',.03,0,700);this.tone(80,.6,'sawtooth',.06,0,40)}
+    else if(id==='taisho'){for(let i=0;i<4;i++)this.tone(900+i*140,.07,'square',.02,i*.05);this.noise(.12,.07,2600)}
+    else if(id==='amimoto'){this.tone(260,.5,'triangle',.05,0,900);this.noise(.4,.08,1200)}
+    else this.godhit()},
+  tap(){this.tone(620+Math.random()*160,.05,'square',.02)},
   fuse(){[392,523,659,784,1046].forEach((f,i)=>this.tone(f,.22,'square',.03,i*.06));this.noise(.3,.08,2000)},
   coin(){this.tone(880,.06,'square',.02);this.tone(1320,.09,'square',.02,.06)},
 };
@@ -121,7 +129,7 @@ function enemiesOf(s){const seen=[];for(const r of s.rules)if(!seen.includes(r.e
 function renderMap(){
   const lap=save.lap,prog=save.prog[lap],p=$('p-map');p.innerHTML='';
   const laps=document.createElement('div');laps.className='laps';
-  LAPS.forEach((l,i)=>{if(i&&save.prog[i-1]<STAGES.length)return;const b=document.createElement('button');b.textContent=i?`${l.n}(敵の強さ ×${l.m})`:l.n;b.setAttribute('aria-pressed',i===lap);b.onclick=()=>{save.lap=i;persist();renderMap()};laps.appendChild(b)});
+  LAPS.forEach((l,i)=>{if(i&&save.prog[i-1]<STAGES.length)return;const b=document.createElement('button');b.textContent=l.hard?l.n:i?`${l.n}(敵の強さ ×${l.m})`:l.n;b.setAttribute('aria-pressed',i===lap);b.onclick=()=>{save.lap=i;persist();renderMap()};laps.appendChild(b)});
   if(save.prog[0]>=STAGES.length){const b=document.createElement('button');b.textContent='エンディングを見る';b.onclick=()=>{Snd.wake();playEnding(save.lap,()=>show('menu'))};laps.appendChild(b)}
   if(laps.children.length>1||save.prog[0]>=STAGES.length)p.appendChild(laps);
   const riv=document.createElement('div');riv.className='river';let chShown=-1,nextEl=null;
@@ -269,8 +277,8 @@ function clampCam(){if(B)cam=Math.max(0,Math.min(B.L-vw,cam))}
 new ResizeObserver(fit).observe(field);
 function startBattle(si,lap){
   B=new Battle(si,lap,battleCfg(save));bg=A.makeBackground(STAGES[si].ch,B.L,VH,WATER_Y,GROUND,CHAPTERS);
-  scene=null;adT=-1;godSfx=[];$('ad').hidden=true;Snd.setBgm('normal');vfx=[];slotCache=[];paused=false;userPan=0;endQueued=false;banner=null;speed=1;$('btn-speed').textContent='×1';$('over').hidden=true;
-  $('hud-stage').textContent=`${STAGES[si].km}km ${STAGES[si].n}`;
+  scene=null;adT=-1;godSfx=[];clashT=-1;$('clash').hidden=true;$('ad').hidden=true;Snd.setBgm('normal');vfx=[];slotCache=[];paused=false;userPan=0;endQueued=false;banner=null;speed=1;$('btn-speed').textContent='×1';$('over').hidden=true;
+  $('hud-stage').textContent=`${LAPS[lap].hard?'ハード ':''}${STAGES[si].km}km ${STAGES[si].n}`;
   buildSlots();show('battle');fit();cam=B.L-vw;clampCam();
   const tip=$('tip');
   if(!save.tip){tip.hidden=false;tip.textContent='下の値札を押すと仲間が出ます。オキアミは右上の胃袋にたまり、満腹になると止まります。左下で胃袋を広げられます。左の敵の拠点を壊せば勝ちです。';tip.onclick=()=>{tip.hidden=true};save.tip=true;persist();setTimeout(()=>{tip.hidden=true},9000)}else tip.hidden=true;
@@ -337,7 +345,7 @@ function togglePause(){
   if(paused)overlay(`<h2>一時停止</h2><p>${STAGES[B.si].n}</p><div class="row"><button class="pop" id="o-resume">続ける</button><button class="pop ghost" id="o-quit">川をおりる</button></div>`,{'o-resume':togglePause,'o-quit':quit});
   else $('over').hidden=true;
 }
-function quit(){B=null;scene=null;godSfx=[];paused=false;Snd.setBgm('normal');$('over').hidden=true;show('menu')}
+function quit(){B=null;scene=null;godSfx=[];clashT=-1;$('clash').hidden=true;paused=false;Snd.setBgm('normal');$('over').hidden=true;show('menu')}
 function overlay(html,acts,extra,wide){const o=$('over'),c=$('over-card');c.className='card'+(wide?' scene':'');c.innerHTML=html;if(extra)c.insertBefore(extra,c.children[1]||null);for(const[k,f]of Object.entries(acts))$(k).onclick=f;o.hidden=false}
 // ボスに負けた時の見出しと文章。絵は art.js の LOSE_SCENES
 const LOSE={
@@ -400,7 +408,7 @@ function tickEnding(dt){
   const k=Math.min(r.height/360,r.width/480),W=r.width/k,c=ectx;
   c.setTransform(d,0,0,d,0,0);c.fillStyle='#0d1e26';c.fillRect(0,0,r.width,r.height);
   c.setTransform(d*k,0,0,d*k,0,d*(r.height-360*k)/2);c.save();c.beginPath();c.rect(0,0,W,360);c.clip();A.drawEnding(c,et,W,eLap);c.restore();
-  if(et>A.ENDING_LEN-1.5)$('e-next').hidden=false;
+  if(et>A.endingLen(eLap)-1.5)$('e-next').hidden=false;
 }
 
 /* カメラ操作 */
@@ -435,6 +443,16 @@ function drainFx(){
     else if(f.k==='sweep')vfx.push({k:'sweep',t:0,life:2,from:B.pbase.x,to:B.ebase.x});
     else if(f.k==='fuse'){vfx.push({k:'fuse',x:f.x,t:0,life:.8});banner={s:`合体! ${FUSE[f.id].n}`,t:0,col:'#2a8ea3'};Snd.fuse();if(!save.fuse.includes(f.id)){save.fuse.push(f.id);persist()}}
     else if(f.k==='boss'){banner={s:`${f.name} があらわれた`,t:0};Snd.big()}
+    else if(f.k==='word')vfx.push({k:'word',x:f.x,y:GROUND-96,s:f.s,col:f.col,t:0,life:1.2});
+    else if(f.k==='bgod'){const fr=B.us.length?Math.min(...B.us.map(u=>u.x)):B.pbase.x-260;
+      vfx.push({k:'bgod',id:f.id,x:f.x,fr,t:0,life:BGOD[f.id].life+.3});banner={s:f.god,sub:`${f.name}が守護神をよんだ!`,t:0,col:'#5b2c83'};flash=Math.max(flash,.2);Snd.bgod()}
+    else if(f.k==='bghit'){shakeT=.45;flash=Math.max(flash,.12);Snd.bghit(f.id)}
+    else if(f.k==='clash')startClash();
+    else if(f.k==='clashEnd'){
+      banner={s:f.win?'押し勝った!':'押し負けた…',sub:f.win?'ボスの守護神を打ち消した':'こちらの守護神が押し返された',t:0,col:f.win?'#2a8ea3':'#5b2c83'};
+      if(f.win)Snd.win();else Snd.lose();
+      if(f.win&&f.first==='b')vfx=vfx.filter(v=>v.k!=='bgod');
+      if(!f.win&&f.first==='p'){vfx=vfx.filter(v=>v.k!=='god'&&v.k!=='sweep'&&v.k!=='riser');godSfx=[]}}
     else if(f.k==='shock'){shakeT=.5}
     else if(f.k==='wave'){flash=.25;shakeT=.4}
   }
@@ -452,6 +470,80 @@ function tickGodSfx(){
   if(!godSfx.length||paused)return;
   const lag=Snd.lag();
   godSfx=godSfx.filter(q=>{const w=(q.at-B.time)/speed-lag;if(w>.25)return true;q.fn(Math.max(0,w));return false});
+}
+// ハードのボスの守護神。場所は呼んだ時のボスの位置(f.x)と、こちらの先頭(f.fr)をもとにする
+const BG_COL={todo:'#9fe3ff',amimoto:'#ffd34d',taisho:'#ffb0a0',nushi:'#7fffd0',kibori:'#e8b77a'};
+function bgHalo(c,x,y,rad,col,a){c.save();c.globalAlpha=.35*a;const g=c.createRadialGradient(x,y,rad*.2,x,y,rad);g.addColorStop(0,col);g.addColorStop(1,'rgba(255,255,255,0)');c.fillStyle=g;c.beginPath();c.arc(x,y,rad,0,6.2832);c.fill();c.restore()}
+function bigActor(c,id,x,y,s,t,a,atk=0){c.save();c.globalAlpha=a;c.translate(x,y);c.scale(-s,s);A.drawActor(c,id,{t,sw:Math.sin(t*3)*.4,atk,roll:0});c.restore()}
+function plate(c,x,y,rot,k){c.save();c.translate(x,y);c.rotate(rot);A.E(c,0,0,15,6,'#fffdf4',0,2);c.lineWidth=2;c.strokeStyle='#2a6fb0';c.beginPath();c.ellipse(0,0,11,4,0,0,6.2832);c.stroke();A.E(c,0,-4,9,4,'#fff',0,1.4);A.E(c,0,-7,10,3.4,['#ff7a50','#e3170a','#ffd34d','#ff9d7c'][k%4],0,1.4);c.restore()}
+// ボスの守護神が出ている間は、カメラをその場面に向ける。竜神は進む柱を追う
+const nushiX=(f,px)=>f.x+60+Math.min(1,Math.max(0,(f.t-.9)/2.1))*(px-f.x-140);
+function bgFocus(f){return f.id==='nushi'?nushiX(f,B.pbase.x)-vw*.45:(f.x+Math.max(f.x+120,f.fr))/2-vw/2}
+function drawBGod(c,f){
+  const t=f.t,L=f.life,id=f.id,px=B.pbase.x,bx=f.x,a=Math.min(1,t*3,(L-t)*3),fr=Math.max(bx+120,f.fr);
+  c.save();
+  if(id==='todo'){
+    // 大トドが空から落ちてくる → 流氷が手前へすべっていく
+    const land=Math.min(1,t/1.3),y=GROUND+6-(1-land*land)*520,x=bx+150;
+    for(let i=0;t>1.3&&i<60;i++){const fx=bx+80+i*36;if(fx>bx+(t-1.3)*FLOE_V+80)break;const k=(i*37)%11;
+      c.globalAlpha=a*.9;A.poly(c,[[fx-20,GROUND+4+k],[fx-6,GROUND-14-k],[fx+18,GROUND-8],[fx+22,GROUND+8]],'#e6fbff',2)}
+    c.globalAlpha=1;bgHalo(c,x,y-90,170,BG_COL.todo,a);bigActor(c,'todo',x,y,2,t,a*.95);
+    if(t>1.3&&t<1.7){c.globalAlpha=1-(t-1.3)/.4;for(let i=0;i<10;i++)A.E(c,x+(i-5)*36,GROUND-(t-1.3)*120-((i*13)%30),16,10,'#fff',0,0);c.globalAlpha=1}
+  }else if(id==='amimoto'){
+    // 大漁旗を立て、空から大きな網を下ろして前の仲間をすくう
+    for(let k=0;k<2;k++){const qx=bx-50+k*100,w=Math.sin(clock*5+k)*10;A.line(c,[[qx,GROUND+6],[qx,GROUND-250]],4,'#6b4a2a');c.globalAlpha=a;
+      A.poly(c,[[qx,GROUND-250],[qx+110,GROUND-244+w],[qx+110,GROUND-180+w],[qx,GROUND-186]],['#e3170a','#2a6fb0'][k],2);c.fillStyle='#fffdf4';c.font="20px 'Dela Gothic One',sans-serif";c.textAlign='center';c.textBaseline='middle';c.fillText('大漁',qx+55,GROUND-215+w/2);c.globalAlpha=1}
+    const dn=Math.min(1,Math.max(0,(t-.8)/1.1)),up=Math.max(0,(t-1.9)/.6),ny=-160+dn*(GROUND+150)-up*up*(GROUND+260),x0=fr-50,x1=fr+330;
+    c.globalAlpha=a;c.lineWidth=1.6;c.strokeStyle='rgba(23,36,44,.75)';
+    for(let i=0;i<=14;i++){const q=x0+(x1-x0)*i/14;c.beginPath();c.moveTo(q,ny-170);c.lineTo(q+Math.sin(i)*6,ny);c.stroke()}
+    for(let j=0;j<=8;j++){const q=ny-170+j*21;c.beginPath();c.moveTo(x0,q);c.lineTo(x1,q+Math.sin(j+clock*3)*3);c.stroke()}
+    A.line(c,[[x0,ny-170],[x1,ny-170]],4,'#6b4a2a');for(let i=0;i<8;i++)A.E(c,x0+i*(x1-x0)/7,ny-172,7,7,'#ff8a2e',0,1.6);
+    c.globalAlpha=1;bgHalo(c,bx,GROUND-140,150,BG_COL.amimoto,a);bigActor(c,'amimoto',bx-10,GROUND+6,1.6,t,a*.5);
+  }else if(id==='taisho'){
+    // 大きな大将が後ろに立ち、すし皿がつぎつぎ飛んでくる
+    bgHalo(c,bx,GROUND-150,170,BG_COL.taisho,a);bigActor(c,'taisho',bx-30,GROUND+6,2.1,t,a*.55,Math.max(0,Math.sin(t*14)));
+    for(let i=0;i<40;i++){const q=(t-1.05-i*.045)/.3;if(q<0||q>1)continue;const tx=fr+(i%6)*24-10,x=bx+50+(tx-bx-50)*q,y=GROUND-120-Math.sin(q*Math.PI)*40+((i*29)%50)*q;
+      c.globalAlpha=.5;A.line(c,[[x-40,y],[x-6,y]],3,'#fffdf4');c.globalAlpha=1;plate(c,x,y,t*20+i,i)}
+  }else if(id==='nushi'){
+    // 水の柱と竜神が、手前へ進みながら3回体当たりする
+    const X=nushiX(f,px);
+    let lunge=0;for(const h of[1.3,2,2.7])if(t>h-.15&&t<h+.2)lunge=Math.max(lunge,1-Math.abs(t-h)/.2);
+    c.globalAlpha=a*.85;const g=c.createLinearGradient(X-50,0,X+50,0);g.addColorStop(0,'rgba(120,214,226,.2)');g.addColorStop(.5,'rgba(160,236,246,.95)');g.addColorStop(1,'rgba(120,214,226,.2)');c.fillStyle=g;c.fillRect(X-50,-40,100,GROUND+48);
+    for(let i=0;i<10;i++)A.E(c,X+Math.sin(clock*9+i)*30,GROUND-((clock*300+i*40)%(GROUND+40)),10,7,'#f7fdfc',i,0);
+    c.globalAlpha=a;const hx=X+40+lunge*50,hy=GROUND-150+Math.sin(t*4)*14;
+    for(let i=16;i>=0;i--){const sx=hx-20-i*22,sy=hy-40+Math.sin(t*6-i*.6)*26+i*3,r=19-i*.6;A.E(c,sx,sy,r,r,i%2?'#2fae8a':'#3cc79c',0,2);A.E(c,sx,sy+r*.45,r*.7,r*.35,'#ffe28a',0,0)}
+    A.poly(c,[[hx-10,hy-18],[hx+6,hy-46],[hx+12,hy-20]],'#ffd34d',2);A.poly(c,[[hx-28,hy-18],[hx-26,hy-44],[hx-10,hy-20]],'#ffd34d',2);
+    A.E(c,hx,hy,32,21,'#3cc79c',0,2.4);A.E(c,hx+26,hy+5,16,11,'#58d8ac',0,2);A.dot(c,hx+6,hy-6,5,'#fff');A.dot(c,hx+8,hy-6,2.6,A.INK);
+    c.lineWidth=2;c.strokeStyle='#e3170a';c.beginPath();c.moveTo(hx+30,hy+8);c.quadraticCurveTo(hx+60,hy+20,hx+70,hy+44+Math.sin(t*8)*6);c.moveTo(hx+28,hy+2);c.quadraticCurveTo(hx+64,hy-8,hx+80,hy+8+Math.sin(t*8+1)*6);c.stroke();
+    for(let i=0;i<5;i++)A.poly(c,[[hx-30-i*8,hy-14],[hx-46-i*10,hy-36-i%2*8],[hx-34-i*8,hy-6]],'#e3170a',1.5);
+    if(lunge>.5)for(let k=0;k<5;k++)A.line(c,[[hx-80-k*10,hy-30+k*14],[hx-170-k*10,hy-30+k*14]],3,'#fffdf4');
+  }else if(id==='kibori'){
+    // 鮭をくわえた木彫りの熊が、空からたくさん降ってくる
+    bgHalo(c,bx,GROUND-150,170,BG_COL.kibori,a);
+    for(let i=0;i<48;i++){const st=.9+i*.05,q=(t-st)/.45;if(q<0)continue;const x=fr-40+((i*0.618)%1)*(px-fr-60),land=Math.min(1,q),y=-90+land*land*(GROUND+96);
+      const fade=Math.max(0,1-(t-st-.45-.5)/.4);if(fade<=0)continue;c.save();c.globalAlpha=fade;c.translate(x,y);c.rotate(land<1?q*6:0);c.scale(-.34,.34);A.drawActor(c,'kibori',{t:0,sw:0,atk:0,roll:0});c.restore();
+      if(land>=1&&q<1.3){c.globalAlpha=(1.3-q)/.3;A.E(c,x,GROUND+4,26,8,'#e8d8bf',0,0);c.globalAlpha=1}}
+  }
+  c.restore();
+}
+// 守護神どうしの押し合い。CLASH_T秒のあいだ連打して、ボスより多く押せば勝ち
+let clashT=-1,taps=0;
+function startClash(){clashT=0;taps=0;$('clash').hidden=false;Snd.big()}
+$('clash').addEventListener('pointerdown',e=>{e.preventDefault();if(clashT>=0&&clashT<CLASH_T){taps++;Snd.tap()}});
+function tickClash(dt){
+  const C=B.clash;if(!C){clashT=-1;$('clash').hidden=true;return}
+  clashT+=dt;const id=C.b.id,foe=CLASH_RATE[id]*Math.min(clashT,CLASH_T),pk=C.pk>=0?C.pk:(vfx.find(v=>v.k==='god')||{kind:0}).kind;
+  const c=ctx,r=cv.width/dpr,h=cv.height/dpr,bal=Math.max(-1,Math.min(1,(taps-foe)/12)),mid=r/2-bal*r*.18,s=Math.min(1.1,h/360);
+  c.save();c.setTransform(dpr,0,0,dpr,0,0);c.fillStyle='rgba(13,30,38,.55)';c.fillRect(0,0,r,h);
+  const jig=Math.sin(clock*40)*3;
+  const bs=1.3*s*Math.min(1,110/ENEMIES[id].w);c.save();c.translate(mid-130*s+jig,h*.66);c.scale(-bs,bs);bgHalo(c,0,-60,130,BG_COL[id],1);A.drawActor(c,id,{t:clock,sw:0,atk:1,roll:0});c.restore();
+  c.save();c.translate(mid+120*s-jig,h*.42);c.scale(s*.6,s*.6);A.drawGuardian(c,clock,pk);c.restore();
+  burst(c,mid,h*.42,24+Math.sin(clock*30)*6,'#ffe63b');
+  const bw=Math.min(r-40,420),bx=r/2-bw/2,by=h*.16;c.fillStyle='#5b2c83';c.fillRect(bx,by,bw,16);c.fillStyle='#2a8ea3';c.fillRect(bx+bw/2-bal*bw/2,by,bw/2+bal*bw/2,16);c.lineWidth=3;c.strokeStyle=A.INK;c.strokeRect(bx,by,bw,16);
+  word(c,'守護神どうしの押し合い!',r/2,by-18,'#ffe63b',Math.min(22,r/18));
+  if(clashT<CLASH_T)word(c,`連打! あと${Math.ceil(CLASH_T-clashT)}秒`,r/2,h*.8,'#fffdf4',Math.min(30,r/14));
+  c.restore();
+  if(clashT>=CLASH_T+.3){const win=taps>foe;clashT=-1;$('clash').hidden=true;B.resolveClash(win)}
 }
 function drawAtkFx(c,f){
   const a=f.t/f.life,dx=f.tx-f.x,y=GROUND-24-(f.lane||0)*.2-(f.fly||0),x=f.x+dx*a;
@@ -482,7 +574,9 @@ function burst(c,x,y,r,col){c.beginPath();for(let i=0;i<12;i++){const a=i/12*6.2
 function word(c,s,x,y,col,fs){c.font=`${fs}px 'Dela Gothic One','Hiragino Sans',sans-serif`;c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';c.lineWidth=4;c.strokeStyle=A.INK;c.strokeText(s,x,y);c.fillStyle=col;c.fillText(s,x,y)}
 function drawOne(c,e,t){
   const d=e.def;c.save();
-  c.translate(e.x,GROUND+e.lane-(d.fly||0));
+  const air=e.state==='air'&&e.air?Math.min(1,e.air.t/e.air.d):-1;
+  c.translate(e.x,GROUND+e.lane-(d.fly||0)-(air>=0?Math.sin(air*Math.PI)*170:0));
+  if(air>=0)c.rotate(air*Math.PI*3);
   if(e.side<0)c.scale(-1,1);
   const atk=e.state==='wind'?1-e.timer/d.wind:e.lunge;
   c.translate(-atk*(d.w>=90?4:7),0);
@@ -490,7 +584,8 @@ function drawOne(c,e,t){
   if(e.hurt>0&&((clock*40)|0)%2)c.globalAlpha=.55;
   A.drawActor(c,e.id,{t:e.anim+e.seed*5,sw:Math.sin(e.walk),atk,roll:e.walk*1.7,lunge:e.lunge});
   c.restore();
-  if(e.stun>0)word(c,'時',e.x,GROUND-62,'#fff7d6',16);
+  if(e.stun>0&&e.ice){c.save();c.globalAlpha=.55;c.fillStyle='#c9f1ff';c.fillRect(e.x-d.w*.6,GROUND+e.lane-58,d.w*1.2,60);c.globalAlpha=1;c.lineWidth=2;c.strokeStyle='#eafcff';c.strokeRect(e.x-d.w*.6,GROUND+e.lane-58,d.w*1.2,60);A.line(c,[[e.x-d.w*.4,GROUND+e.lane-50],[e.x-d.w*.1,GROUND+e.lane-30]],2,'#fff');c.restore()}
+  else if(e.stun>0)word(c,'時',e.x,GROUND-62,'#fff7d6',16);
   else if(e.slow>0){c.globalAlpha=.8;A.E(c,e.x+6,GROUND-50-(d.fly||0),9,6,'#d8dedd',0,1.2);c.globalAlpha=1}
   if(e.shield){A.dot(c,e.x+14,GROUND-54,3,'#ffe63b')}
 }
@@ -591,6 +686,7 @@ function drawField(dt){
     else if(f.k==='riser')drawRiser(c,f);
     else if(f.k==='fuse'){const a=f.t/f.life;c.save();c.globalAlpha=1-a;for(let i=0;i<3;i++){c.lineWidth=4;c.strokeStyle=['#ffe63b','#fff','#ff8a5c'][i];c.beginPath();c.arc(f.x,GROUND-34,20+a*(70+i*22),0,6.2832);c.stroke()}c.restore();if(a<.4)burst(c,f.x,GROUND-34,40*(1-a),'#fff6b0')}
     else if(f.k==='sweep')drawSweep(c,f);
+    else if(f.k==='bgod')drawBGod(c,f);
     else if(f.k==='hit')burst(c,f.x,f.y,(f.big?26:14)*(1-f.t/f.life*.5),f.big?'#ffe63b':'#fff');
     else if(f.k==='word'){c.globalAlpha=Math.min(1,(1-f.t/f.life)*2);word(c,f.s,f.x,f.y-f.t*24,f.col,f.s.length>2?14:17);c.globalAlpha=1}
   }
@@ -612,7 +708,7 @@ function drawField(dt){
   for(const e of B.us){c.fillStyle='#ff8a5c';c.fillRect(mx+e.x*per-1,my+1,2.4,6)}
   for(const e of B.es){c.fillStyle=e.def.boss?'#ffe63b':'#17242c';c.fillRect(mx+e.x*per-1,my+1,e.def.boss?4:2.4,6)}
   if(flash>0){c.fillStyle=`rgba(255,255,255,${flash*2})`;c.fillRect(0,0,r,h)}
-  if(banner&&banner.t<2.2){const a=Math.min(1,Math.min(banner.t*5,(2.2-banner.t)*3));c.globalAlpha=a;c.fillStyle=banner.col||'#e3170a';c.fillRect(0,h*.26,r,44);word(c,banner.s,r/2,h*.26+23,'#ffe63b',Math.min(26,r/14));c.globalAlpha=1}
+  if(banner&&banner.t<2.2){const a=Math.min(1,Math.min(banner.t*5,(2.2-banner.t)*3)),sub=banner.sub?20:0;c.globalAlpha=a;c.fillStyle=banner.col||'#e3170a';c.fillRect(0,h*.26-sub,r,44+sub);if(sub)word(c,banner.sub,r/2,h*.26-6,'#fffdf4',Math.min(15,r/24));word(c,banner.s,r/2,h*.26+23,'#ffe63b',Math.min(26,r/14));c.globalAlpha=1}
 }
 let slotCache=[];
 function syncHud(){
@@ -628,9 +724,9 @@ function syncHud(){
   const st=$('btn-stom'),fl=$('btn-flood'),mx=B.stom>=STOM.max;
   st.querySelector('b').textContent=`胃袋 Lv${B.stom}`;st.querySelector('small').textContent=mx?'最大':`${STOM.cost(B.stom)}で+${STOM.cap(B.stom+1)-STOM.cap(B.stom)}`;
   st.style.setProperty('--c',mx?1:Math.min(1,B.money/STOM.cost(B.stom)));st.classList.toggle('ready',B.canUp());
-  const gb=$('btn-god'),gc=B.god.cd,gs=gc>0?`あと${Math.floor(Math.ceil(gc)/60)}:${String(Math.ceil(gc)%60).padStart(2,'0')}`:'CMのあとで';
-  if(gb._s!==gs){gb._s=gs;gb.querySelector('small').textContent=gs}gb.classList.toggle('ready',B.canGod()&&!paused);gb.disabled=gc>0||!!B.over;
-  const ready=B.canFire();fl.classList.toggle('ready',ready);fl.style.setProperty('--c',B.flood.c/B.flood.need);fl.querySelector('small').textContent=ready?'押すと発射':`${Math.ceil(B.flood.need-B.flood.c)}秒`;
+  const gb=$('btn-god'),gc=B.god.cd,gs=B.seal>0?'封印中':gc>0?`あと${Math.floor(Math.ceil(gc)/60)}:${String(Math.ceil(gc)%60).padStart(2,'0')}`:'CMのあとで';
+  if(gb._s!==gs){gb._s=gs;gb.querySelector('small').textContent=gs}gb.classList.toggle('ready',B.canGod()&&!paused);gb.disabled=gc>0||B.seal>0||!!B.over;
+  const ready=B.canFire();fl.classList.toggle('ready',ready);fl.style.setProperty('--c',B.flood.c/B.flood.need);fl.querySelector('small').textContent=B.seal>0?`封印中 ${Math.ceil(B.seal)}秒`:ready?'押すと発射':`${Math.ceil(B.flood.need-B.flood.c)}秒`;
 }
 function tickBattle(dt){
   if(!B)return;
@@ -638,14 +734,14 @@ function tickBattle(dt){
     const st=1/60;acc+=Math.min(.1,dt)*speed;
     while(acc>=st){B.step(st);acc-=st}
     if(userPan>0)userPan-=dt;
-    else{const front=B.us.length?Math.min(...B.us.map(e=>e.x)):B.L,target=front-vw*.32;cam+=(target-cam)*Math.min(1,dt*1.6);clampCam()}
+    else{const front=B.us.length?Math.min(...B.us.map(e=>e.x)):B.L,fb=vfx.find(v=>v.k==='bgod'),target=fb?bgFocus(fb):front-vw*.32;cam+=(target-cam)*Math.min(1,dt*1.6);clampCam()}
   }
   drainFx();tickGodSfx();
   // 演出もゲームの速さに合わせる。×2で当たる時刻と絵がずれないように
-  for(const f of vfx)f.t+=paused?0:dt*speed;
+  for(const f of vfx)f.t+=paused||B.clash?0:dt*speed;
   vfx=vfx.filter(f=>f.t<f.life);
   if(!paused){shakeT=Math.max(0,shakeT-dt);flash=Math.max(0,flash-dt);if(banner)banner.t+=dt}
-  drawField(dt);syncHud();
+  drawField(dt);if(clashT>=0)tickClash(dt);syncHud();
   if(adT<0)Snd.setBgm(!B.over&&B.es.some(e=>e.def.boss)?'boss':'normal');
   if(scene)scene();
   if(B.over&&!endQueued){endQueued=true;setTimeout(finish,900)}

@@ -5,7 +5,17 @@ const GOD_CD=120,GOD_SWEEP=1,GOD_RISE=600; // 守護神は2分に1回。天の�
 // 守護神の3回の攻撃が始まる時刻(呼んでからの秒)。並・上・特上の順。画面の音もこの表で先に予約する
 const GOD_HITS=[[1.5,2.2,2.9],[1.4,2.2,3],[1.2,2.3,3.4]];
 const TRAIT={fish:'川魚',shell:'カニ',bird:'鳥',beast:'ケモノ',human:'ヒト'};
-const LAPS=[{n:'1回目の遡上',m:1,r:1},{n:'4年後の遡上',m:2.5,r:2},{n:'8年後の遡上',m:6,r:3.5}];
+const LAPS=[{n:'1回目の遡上',m:1,r:1},{n:'4年後の遡上',m:2.5,r:2},{n:'8年後の遡上',m:6,r:3.5},{n:'12年後の遡上(ハード)',m:9,r:5,hard:1}];
+// ハードのボスの守護神。体力が30%を切るとよび、体力が50%まで戻る。usesは1戦でよべる回数、lifeは技が続く秒数
+const BGOD={
+todo:{n:'流氷の大トド',uses:1,life:3.6},
+amimoto:{n:'大漁旗の神さま',uses:1,life:3.6},
+taisho:{n:'板前の神さま',uses:1,life:3.4},
+nushi:{n:'滝の竜神',uses:2,life:3.6},
+kibori:{n:'おみやげの大群',uses:3,life:3.8},
+};
+const GOD_ACT=[3.4,3.5,4.8],FLOE_V=700,SEAL=20,CLASH_T=4; // こちらの守護神が効いている秒数、流氷の速さ、封印の秒数、押し合いの秒数
+const CLASH_RATE={todo:4,amimoto:4.5,taisho:5,nushi:5.5,kibori:6}; // 押し合いでボスが1秒に押す回数。これより多く連打すると勝ち
 const RARE={N:'基本',R:'白皿',SR:'金皿',UR:'黒皿'};
 
 const UNITS={
@@ -148,11 +158,12 @@ class Battle{
     this.slots=cfg.slots.map(x=>({id:x.id,lv:x.lv,def:UNITS[x.id],cd:0}));
     this.flood={c:0,need:cfg.floodNeed,dmg:cfg.floodDmg};
     this.rules=s.rules.map(r=>({...r,on:false,cnt:0,next:0}));
-    this.kills=0;this.lastHit=null;this.god={cd:0};
+    this.kills=0;this.lastHit=null;this.god={cd:0,act:0};
+    this.hard=!!LAPS[lap].hard;this.bgod=null;this.clash=null;this.seal=0;
   }
   get income(){return STOM.income(this.stom)*this.cfg.income}
   get cap(){return STOM.cap(this.stom)}
-  canDeploy(i){const s=this.slots[i];return s&&!this.over&&s.cd<=0&&this.money>=s.def.cost&&this.us.length<40}
+  canDeploy(i){const s=this.slots[i];return s&&!this.over&&!this.clash&&s.cd<=0&&this.money>=s.def.cost&&this.us.length<40}
   deploy(i){
     if(!this.canDeploy(i))return false;
     const s=this.slots[i];this.money-=s.def.cost;s.cd=s.def.cd;
@@ -180,6 +191,7 @@ class Battle{
   addEnemy(id){
     const d=ENEMIES[id],m=this.mul;
     const e=this.make(d,-1,this.ebase.x+50,d.hp*m,d.atk*m);e.id=id;
+    if(this.hard&&BGOD[id])e.bg=BGOD[id].uses;
     this.es.push(e);
     if(d.boss){this.fx.push({k:'boss',name:d.n});for(const u of this.us)this.knock(u);this.fx.push({k:'shock'});}
   }
@@ -190,11 +202,17 @@ class Battle{
   canUp(){return this.stom<STOM.max&&this.money>=STOM.cost(this.stom)&&!this.over}
   upStom(){if(!this.canUp())return false;this.money-=STOM.cost(this.stom);this.stom++;return true}
   // 鮭の守護神。広告のあとに呼ぶ。kindは0並 1上 2特上。姿が見えてから少しして効く
-  canGod(){return this.god.cd<=0&&!this.over}
+  canGod(){return this.god.cd<=0&&!this.over&&!(this.seal>0)&&!this.clash}
   summon(kind){
     if(!this.canGod())return false;
-    this.god.cd=GOD_CD;this.fx.push({k:'god',kind,t:this.time});
-    const later=(t,fn)=>this.queue.push({t,fn});
+    this.god.cd=GOD_CD;
+    // ボスの守護神が出ている最中なら、守護神どうしの押し合いになる
+    if(this.bgod){this.clash={b:this.bgod,pk:kind,first:'b'};this.fx.push({k:'clash'});return true}
+    this.startGod(kind);return true;
+  }
+  startGod(kind){
+    this.god.act=GOD_ACT[kind];this.fx.push({k:'god',kind,t:this.time});
+    const later=(t,fn)=>this.queue.push({t,fn,tag:'p'});
     const hitAll=(r,fn)=>{for(const e of this.es){if(!e.alive)continue;const boss=!!e.def.boss;this.fx.push({k:'hit',x:e.x,y:GROUND-40-(e.def.fly||0),big:1});this.damage(e,e.maxhp*r[boss?1:0]);if(e.alive&&fn)fn(e,boss)}};
     // 並:3連の波。1回ごとに押し返す
     if(kind===0)for(let i=0;i<3;i++)later(GOD_HITS[0][i],()=>{this.fx.push({k:'godhit',kind});hitAll([.4/3,.04],e=>this.knock(e))});
@@ -214,15 +232,55 @@ class Battle{
         later(GOD_SWEEP,()=>{this.ebase.hp-=this.ebase.max*.05;this.ebase.shake=.3});
       });
     }
-    return true;
   }
-  canFire(){return this.flood.c>=this.flood.need&&!this.over&&!this.wave}
+  // ハードのボスが追い詰められた時。こちらの守護神が効いている最中なら押し合いになる
+  bossGod(e){
+    e.bg--;e.pend=false;
+    const g={who:e,id:e.id,act:BGOD[e.id].life};
+    if(this.god.act>0){this.clash={b:g,pk:-1,first:'p'};this.fx.push({k:'clash'});return}
+    this.startBGod(g);
+  }
+  startBGod(g){
+    const e=g.who,kb=e.def.kb;this.bgod=g;
+    if(e.alive){e.hp=Math.max(e.hp,e.maxhp*.5);e.kbDone=Math.min(kb-1,Math.floor(.5*kb));this.fx.push({k:'word',x:e.x,s:'回復',col:'#8dff9c'})}
+    this.fx.push({k:'bgod',id:g.id,x:e.x,name:e.def.n,god:BGOD[g.id].n,t:this.time});
+    const later=(t,fn)=>this.queue.push({t,fn,tag:'b'});
+    const allies=()=>this.us.filter(u=>u.alive&&u.state!=='air');
+    // 前にいる仲間ほど敵に近い(xが小さい)。先頭からn体
+    const front=n=>allies().sort((a,b)=>a.x-b.x).slice(0,n);
+    const hurt=(u,r)=>{this.fx.push({k:'hit',x:u.x,y:GROUND-34,big:1});this.damage(u,u.maxhp*r)};
+    const bx=e.x;
+    switch(g.id){
+      // 大トドが腹ばいで落ち、流氷が手前へすべる。当たった仲間は凍って止まる
+      case'todo':later(1.3,()=>{this.fx.push({k:'bghit',id:g.id});
+        for(const u of allies())later(Math.max(0,u.x-bx)/FLOE_V,()=>{if(!u.alive)return;hurt(u,.25);if(u.alive){u.stun=4;u.ice=1}})});break;
+      // 大きな網で前の仲間をすくい、群れのところまで放り投げる。落ちた時にダメージ
+      case'amimoto':later(1.9,()=>{this.fx.push({k:'bghit',id:g.id});
+        for(const u of front(8)){u.state='air';u.air={t:0,d:1.1,x0:u.x,x1:this.pbase.x-44}}});break;
+      // すし皿がつぎつぎ飛んできて、前の仲間に当たる
+      case'taisho':for(let i=0;i<4;i++)later(1.3+i*.4,()=>{this.fx.push({k:'bghit',id:g.id});for(const u of front(6))hurt(u,.18)});break;
+      // 水の柱と竜神が手前へ進みながら3回体当たり。そのたびに押し返す
+      case'nushi':for(let i=0;i<3;i++)later(1.3+i*.7,()=>{this.fx.push({k:'bghit',id:g.id});for(const u of allies()){hurt(u,.12);if(u.alive)this.knock(u)}});break;
+      // 木彫りの熊が空から降ってくる。しばらく鉄砲水と守護神が使えない
+      case'kibori':later(1.2,()=>{this.seal=SEAL});
+        for(let i=0;i<3;i++)later(1.4+i*.7,()=>{this.fx.push({k:'bghit',id:g.id});for(const u of allies())hurt(u,.12);this.pbase.hp-=this.pbase.max*.04;this.pbase.shake=.3});break;
+    }
+  }
+  // 押し合いの決着。勝てばボスの守護神を打ち消し、負ければこちらの守護神が消える
+  resolveClash(win){
+    const c=this.clash;if(!c)return;this.clash=null;
+    if(win){
+      if(c.first==='b'){this.queue=this.queue.filter(q=>q.tag!=='b');this.bgod=null;this.startGod(c.pk)}
+    }else if(c.first==='p'){this.queue=this.queue.filter(q=>q.tag!=='p');this.god.act=0;this.startBGod(c.b)}
+    this.fx.push({k:'clashEnd',win,first:c.first});
+  }
+  canFire(){return this.flood.c>=this.flood.need&&!this.over&&!this.wave&&!(this.seal>0)&&!this.clash}
   fire(){if(!this.canFire())return false;this.flood.c=0;this.wave={x:this.pbase.x,hit:new Set()};this.fx.push({k:'wave'});return true}
 
   nearest(e){
     const d=e.dir,foes=e.side>0?this.es:this.us;let best=null,bd=1e9;
     for(const t of foes){
-      if(!t.alive||t.state==='kb')continue;
+      if(!t.alive||t.state==='kb'||t.state==='air')continue;
       const dx=(t.x-e.x)*d;if(dx<-24)continue;
       const g=Math.max(0,dx-t.w/2);
       if(g<=e.range&&g<bd){bd=g;best=t}
@@ -232,12 +290,15 @@ class Battle{
     return best;
   }
   step(dt){
-    if(this.over)return;
+    if(this.over||this.clash)return;
     this.time+=dt;
     this.money=Math.min(this.cap,this.money+this.income*dt);
     for(const s of this.slots)s.cd=Math.max(0,s.cd-dt);
     this.flood.c=Math.min(this.flood.need,this.flood.c+dt);
-    this.god.cd=Math.max(0,this.god.cd-dt);
+    this.god.cd=Math.max(0,this.god.cd-dt);this.god.act=Math.max(0,this.god.act-dt);this.seal=Math.max(0,this.seal-dt);
+    if(this.bgod&&(this.bgod.act-=dt)<=0)this.bgod=null;
+    // 守護神を待っているボス(別のボスの守護神が出ていた)がいれば、空いた時によぶ
+    if(!this.bgod&&!this.clash){const w=this.es.find(e=>e.alive&&e.pend);if(w){this.bossGod(w);if(this.clash)return}}
     this.pbase.shake=Math.max(0,this.pbase.shake-dt);this.ebase.shake=Math.max(0,this.ebase.shake-dt);
     const pct=this.ebase.hp/this.ebase.max*100;
     for(const r of this.rules){
@@ -245,8 +306,8 @@ class Battle{
       if(!r.on){if(this.time>=r.t&&pct<=(r.hp??100)){r.on=true;r.next=0}else continue}
       r.next-=dt;
       if(r.next<=0){
-        const b=r.b||1;
-        for(let i=0;i<b;i++)this.queue.push({t:i*.45,fn:()=>{if(this.es.length<40)this.addEnemy(r.e)}});
+        const b=(r.b||1)*(this.hard&&!ENEMIES[r.e].boss?2:1),cap=this.hard?60:40;
+        for(let i=0;i<b;i++)this.queue.push({t:i*.45,fn:()=>{if(this.es.length<cap)this.addEnemy(r.e)}});
         r.cnt++;r.next=r.ev;
         if(r.n&&r.cnt>=r.n)r.done=true;
       }
@@ -269,7 +330,10 @@ class Battle{
   act(e,dt){
     if(!e.alive)return;
     const d=e.def;e.anim+=dt;e.hurt=Math.max(0,e.hurt-dt);e.lunge=Math.max(0,e.lunge-dt*4);
-    if(e.stun>0){e.stun-=dt;return}
+    if(e.stun>0){e.stun-=dt;if(e.stun<=0)e.ice=0;return}
+    // 網で放り投げられている間。落ちた所でダメージを受ける
+    if(e.state==='air'){const a=e.air;a.t+=dt;const q=Math.min(1,a.t/a.d);e.x=a.x0+(a.x1-a.x0)*q;
+      if(q>=1){e.state='move';e.air=null;this.fx.push({k:'hit',x:e.x,y:GROUND-30,big:1});this.damage(e,e.maxhp*.35)}return}
     if(e.slow>0)e.slow-=dt;
     const sp=d.sp*(e.slow>0?.4:1);
     if(e.state==='kb'){
@@ -328,7 +392,7 @@ class Battle{
       if(a.side<0&&this.over)return;
       t.hp-=dmg;t.shake=.2;if(a.side<0)this.lastHit=a.id;this.fx.push({k:'hit',x:t.x+a.dir*-30,y:GROUND-60});return;
     }
-    if(t.state==='kb')return;
+    if(t.state==='kb'||t.state==='air')return;
     if(d.vs&&d.vs[t.def.trait])dmg*=d.vs[t.def.trait];
     const crit=d.crit&&this.rand()<d.crit;
     if(crit)dmg*=2;
@@ -342,6 +406,8 @@ class Battle{
   damage(t,dmg){
     if(!t.alive)return;
     t.hp-=dmg;t.hurt=.12;
+    // ハードのボスは体力が30%を切ると守護神をよぶ。よべる回数が残っている間は倒れない
+    if(t.bg>0&&t.hp<t.maxhp*.3){t.hp=Math.max(t.hp,1);if(!t.pend){t.pend=true;if(!this.bgod&&!this.clash)this.bossGod(t)}}
     if(t.hp<=0){
       if(t.shield){t.shield=false;t.hp=1;this.fx.push({k:'guard',x:t.x});}
       else{this.kill(t);return}
@@ -356,5 +422,5 @@ class Battle{
     else if(t.def.onDeath){const o=t.def.onDeath;for(let i=0;i<o.n;i++){const u=this.addUnit(o.id,t.lv,t.x+(i-3)*14);u.state='move'}}
   }
 }
-return{VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle};
+return{VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,BGOD,FLOE_V,CLASH_T,CLASH_RATE,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle};
 })();
