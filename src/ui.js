@@ -1,12 +1,12 @@
 (()=>{
 'use strict';
 const G=window.SALMON,A=window.SALMON_ART;
-const{VH,WATER_Y,GROUND,TRAIT,LAPS,RARE,UNITS,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle}=G;
+const{VH,WATER_Y,GROUND,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle}=G;
 const $=id=>document.getElementById(id);
 const fmt=n=>Math.floor(n).toLocaleString('ja-JP');
 const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const KEY='salmon-run-v1',SPIN=200,MAXLV=20;
-const fresh=()=>({ikura:300,own:{shake:1,ikura:1,aramaki:1},team:['shake','ikura','aramaki'],prog:[0,0,0],meta:{wall:0,flood:0,stom:0},lap:0,tip:false,snd:true});
+const fresh=()=>({ikura:300,own:{shake:1,ikura:1,aramaki:1},team:['shake','ikura','aramaki'],prog:[0,0,0],meta:{wall:0,flood:0,stom:0},lap:0,tip:false,snd:true,fuse:[]});
 // 更新で項目が増減しても、古いセーブを今の形に直して読む
 function migrate(s){
   const f=fresh(),own={};
@@ -15,18 +15,46 @@ function migrate(s){
   const team=(Array.isArray(s.team)?s.team:[]).filter(k=>own[k]);
   return{...f,...s,own,team:team.length?team:Object.keys(own).slice(0,3),
     prog:f.prog.map((_,i)=>Math.min(STAGES.length,Math.max(0,((s.prog||[])[i])|0))),
-    meta:{...f.meta,...s.meta},lap:Math.min(LAPS.length-1,Math.max(0,s.lap|0))};
+    meta:{...f.meta,...s.meta},fuse:(Array.isArray(s.fuse)?s.fuse:[]).filter(k=>FUSE[k]),lap:Math.min(LAPS.length-1,Math.max(0,s.lap|0))};
 }
 let save=fresh();
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.own)save=migrate(s)}catch(e){}
 const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(save))}catch(e){}};
 
 /* 音 */
+// エンディングの曲。和音は1小節ずつ、旋律は8分音符ずつ。-1はのばす
+const SONG=(()=>{
+  const C={C:[48,55,60,64,67],Gb:[47,55,59,62,67],Am:[45,52,57,60,64],Eg:[43,52,55,59,64],F:[41,48,53,57,60],Ce:[40,48,52,55,60],Dm:[38,45,50,53,57],G:[43,50,55,59,62],Em:[40,47,52,55,59]};
+  const _=-1;
+  return{ch:'C Gb Am Eg F Ce Dm G F G Em Am F G C C'.split(' ').map(k=>C[k]),mel:[
+    76,_,_,_,74,_,72,_, 74,_,_,_,_,_,67,_, 72,_,_,_,71,_,69,_, 71,_,_,_,_,_,67,_,
+    69,_,_,_,72,_,77,_, 76,_,_,_,74,_,72,_, 74,_,_,76,77,_,69,_, 71,_,_,_,74,_,_,_,
+    81,_,_,_,79,_,77,_, 79,_,_,_,74,_,_,_, 79,_,_,_,76,_,74,_, 72,_,_,_,76,_,81,_,
+    81,_,_,_,79,_,77,_, 76,_,77,_,79,_,74,_, 76,_,_,_,72,_,_,_, 72,_,_,_,_,_,_,_]};
+})();
 const Snd={ac:null,timer:null,step:0,mode:'normal',
   wake(){if(!save.snd)return;if(!this.ac){const C=window.AudioContext||window.webkitAudioContext;if(!C)return;this.ac=new C()}if(this.ac.state!=='running')this.ac.resume();this.bgm()},
   tone(f,d=.1,type='triangle',v=.05,when=0,to){if(!this.ac||!save.snd)return;const t=this.ac.currentTime+when,o=this.ac.createOscillator(),g=this.ac.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(to)o.frequency.exponentialRampToValueAtTime(to,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0008,t+d);o.connect(g).connect(this.ac.destination);o.start(t);o.stop(t+d+.02)},
   noise(d=.3,v=.08,fc=900){if(!this.ac||!save.snd)return;const n=this.ac.sampleRate*d|0,b=this.ac.createBuffer(1,n,this.ac.sampleRate),a=b.getChannelData(0);for(let i=0;i<n;i++)a[i]=(Math.random()*2-1)*(1-i/n);const s=this.ac.createBufferSource(),f=this.ac.createBiquadFilter(),g=this.ac.createGain();s.buffer=b;f.type='lowpass';f.frequency.value=fc;g.gain.value=v;s.connect(f).connect(g).connect(this.ac.destination);s.start()},
+  note(f,d,v,when,type='sine'){if(!this.ac||!save.snd)return;const t=this.ac.currentTime+when,o=this.ac.createOscillator(),g=this.ac.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.04);g.gain.exponentialRampToValueAtTime(.0008,t+d);o.connect(g).connect(this.ac.destination);o.start(t);o.stop(t+d+.05)},
+  // 少し先まで予約して鳴らす。setIntervalの揺れを拍に出さないため
+  song(){
+    const a=this.ac,e=60/72/2,f=m=>440*2**((m-69)/12);
+    if(this.next<a.currentTime)this.next=a.currentTime+.05;
+    while(this.next<a.currentTime+.35){
+      const i=this.step++%128,s=i&7,B=i>=64,ch=SONG.ch[i>>3],w=this.next-a.currentTime,m=SONG.mel[i];
+      if(s===0||(B&&s===4))this.note(f(ch[0]),e*7,.05,w);
+      const ar=[0,1,2,3,4,3,2,1][s];if(ar)this.tone(f(ch[ar]),e*3,'triangle',.016,w);
+      if(m>0){let n=1;while(SONG.mel[(i+n)%128]===-1)n++;this.note(f(m),e*n+.25,B?.05:.04,w,'triangle');if(B)this.note(f(m-12),e*n+.25,.018,w)}
+      if(B&&s===0)for(const k of[2,3,4])this.note(f(ch[k]+12),e*8,.008,w);
+      this.next+=e;
+    }
+  },
   bgm(){if(this.timer)return;
+    if(this.mode==='ad'){const m=[523,659,784,1046,784,659,698,587,523,659,784,880,784,0,1046,0];
+      this.timer=setInterval(()=>{if(!save.snd||document.hidden)return;const i=this.step++%16;if(m[i])this.tone(m[i],.13,'square',.022);if(i%4===0)this.tone(i%8?196:131,.2,'triangle',.05)},150);
+      return}
+    if(this.mode==='ending'){this.next=0;this.timer=setInterval(()=>{if(!save.snd||document.hidden||!this.ac){this.next=0;return}this.song()},60);return}
     if(this.mode==='boss'){const bass=[110,110,131,110,147,156,147,131],mel=[440,0,523,494,440,0,392,415];
       this.timer=setInterval(()=>{if(!save.snd||document.hidden)return;const i=this.step++%32;
         if(i%2===0)this.tone(bass[(i/2)%8]/2,.15,'sawtooth',.045);
@@ -41,6 +69,9 @@ const Snd={ac:null,timer:null,step:0,mode:'normal',
   spawn(){this.tone(520,.08,'square',.025,0,780)},hit(){this.noise(.05,.04,1600)},big(){this.tone(120,.2,'sawtooth',.06,0,50);this.noise(.15,.08,700)},
   flood(){this.noise(1.1,.16,520);this.tone(90,.9,'sawtooth',.05,0,40)},
   win(){[523,659,784,1046].forEach((f,i)=>this.tone(f,.26,'triangle',.07,i*.13))},lose(){[392,330,262,196].forEach((f,i)=>this.tone(f,.32,'triangle',.06,i*.17))},
+  god(){[523,659,784,1046,1318].forEach((f,i)=>this.tone(f,.6,'triangle',.05,i*.09));this.tone(1568,1.2,'sine',.03,.5)},
+  godhit(){this.noise(1,.14,900);this.tone(98,.8,'sawtooth',.05,0,49)},
+  fuse(){[392,523,659,784,1046].forEach((f,i)=>this.tone(f,.22,'square',.03,i*.06));this.noise(.3,.08,2000)},
   coin(){this.tone(880,.06,'square',.02);this.tone(1320,.09,'square',.02,.06)},
 };
 
@@ -66,7 +97,7 @@ function portrait(id,px,o={}){
 
 /* 画面切り替え */
 let view='title',tab='map',sel='shake';
-function show(v){view=v;for(const k of['title','menu','battle'])$('v-'+k).hidden=k!==v;if(v==='menu')setTab(tab);if(v==='battle')fit()}
+function show(v){view=v;for(const k of['title','menu','battle','ending'])$('v-'+k).hidden=k!==v;if(v==='menu')setTab(tab);if(v==='battle')fit()}
 function setTab(t){tab=t;for(const b of document.querySelectorAll('.tabs button'))b.setAttribute('aria-selected',b.dataset.tab===t);
   for(const k of['map','ike','lane'])$('p-'+k).hidden=k!==t;({map:renderMap,ike:renderIke,lane:renderLane})[t]();$('purse').textContent=fmt(save.ikura)}
 function refreshPurse(){$('purse').textContent=fmt(save.ikura)}
@@ -78,7 +109,8 @@ function renderMap(){
   const lap=save.lap,prog=save.prog[lap],p=$('p-map');p.innerHTML='';
   const laps=document.createElement('div');laps.className='laps';
   LAPS.forEach((l,i)=>{if(i&&save.prog[i-1]<STAGES.length)return;const b=document.createElement('button');b.textContent=i?`${l.n}(敵の強さ ×${l.m})`:l.n;b.setAttribute('aria-pressed',i===lap);b.onclick=()=>{save.lap=i;persist();renderMap()};laps.appendChild(b)});
-  if(laps.children.length>1)p.appendChild(laps);
+  if(save.prog[0]>=STAGES.length){const b=document.createElement('button');b.textContent='エンディングを見る';b.onclick=()=>{Snd.wake();playEnding(save.lap,()=>show('menu'))};laps.appendChild(b)}
+  if(laps.children.length>1||save.prog[0]>=STAGES.length)p.appendChild(laps);
   const riv=document.createElement('div');riv.className='river';let chShown=-1,nextEl=null;
   for(let i=STAGES.length-1;i>=0;i--){
     const s=STAGES[i],locked=i>prog,done=i<prog;
@@ -135,6 +167,15 @@ function renderIke(){
     b.onclick=()=>{sel=id;renderIke();document.querySelector('.detail').scrollIntoView({block:'nearest'})};grid.appendChild(b)}
   const det=document.createElement('div');det.className='detail';det.appendChild(detailOf(sel));
   wrap.append(grid,det);p.appendChild(wrap);
+  // 合体は隠し要素。見つけるまで名前も組み合わせも伏せる
+  const fk=Object.keys(FUSE),fh=document.createElement('h2');fh.className='mt';fh.textContent=`合体 ${save.fuse.length} / ${fk.length}`;p.appendChild(fh);
+  const fn=document.createElement('p');fn.className='fuse-hint';fn.textContent='出撃のしかたを工夫すると、仲間どうしが合体することがあるらしい。';p.appendChild(fn);
+  const fl=document.createElement('div');fl.className='fuses';
+  for(const k of fk){const f=FUSE[k],got=save.fuse.includes(k),el=document.createElement('div');el.className='fuse'+(got?'':' lock');
+    if(got)el.appendChild(portrait(k,64));else{const q=document.createElement('span');q.className='q';q.textContent='?';el.appendChild(q)}
+    const t=document.createElement('div');t.innerHTML=got?`<b>${f.n}</b><small>${UNITS[f.of[0]].n} + ${UNITS[f.of[1]].n}</small><small>${f.txt}</small>`:'<b>???</b><small>??? + ???</small>';
+    el.appendChild(t);fl.appendChild(el)}
+  p.appendChild(fl);
   const h2=document.createElement('h2');h2.className='mt';h2.textContent='群れの強化';p.appendChild(h2);
   const ms=document.createElement('div');ms.className='metas';
   for(const[k,m]of Object.entries(META)){const l=save.meta[k],c=metaCost(l),el=document.createElement('div');el.className='meta';
@@ -215,7 +256,7 @@ function clampCam(){if(B)cam=Math.max(0,Math.min(B.L-vw,cam))}
 new ResizeObserver(fit).observe(field);
 function startBattle(si,lap){
   B=new Battle(si,lap,battleCfg(save));bg=A.makeBackground(STAGES[si].ch,B.L,VH,WATER_Y,GROUND,CHAPTERS);
-  scene=null;Snd.setBgm('normal');vfx=[];slotCache=[];paused=false;userPan=0;endQueued=false;banner=null;speed=1;$('btn-speed').textContent='×1';$('over').hidden=true;
+  scene=null;adT=-1;$('ad').hidden=true;Snd.setBgm('normal');vfx=[];slotCache=[];paused=false;userPan=0;endQueued=false;banner=null;speed=1;$('btn-speed').textContent='×1';$('over').hidden=true;
   $('hud-stage').textContent=`${STAGES[si].km}km ${STAGES[si].n}`;
   buildSlots();show('battle');fit();cam=B.L-vw;clampCam();
   const tip=$('tip');
@@ -234,8 +275,46 @@ function buildSlots(){
     b.append(wait,pr,k);press(b,()=>deploy(i));b.onanimationend=()=>b.classList.remove('flash');w.appendChild(b)});
   for(let i=B.slots.length;i<10;i++){const b=document.createElement('div');b.className='slot empty';w.appendChild(b)}
 }
-function deploy(i){if(B&&!paused&&B.deploy(i))Snd.spawn()}
+// 2つの値札がほぼ同時(FUSE_MS以内)に押され、その2体が合体できる組み合わせなら合体させる。隠し要素
+const FUSE_MS=180;let lastPress={i:-1,t:0};
+function deploy(i){
+  if(!B||paused)return;
+  const now=performance.now(),pv=lastPress;
+  if(pv.i>=0&&pv.i!==i&&now-pv.t<FUSE_MS){const fid=B.fuseOf(pv.i,i);if(fid&&B.fuse(pv.i,i,fid)){lastPress={i:-1,t:0};return}}
+  if(B.deploy(i)){Snd.spawn();lastPress={i,t:now}}
+}
 function upStom(){if(B&&!paused&&B.upStom()){Snd.coin();const m=$('hud-money');m.classList.remove('grow');void m.offsetWidth;m.classList.add('grow')}}
+// 守護神は広告を見てから呼ぶ。今の広告は仮で、ゲーム自身の宣伝を5秒流す
+const GODS=[{g:'並',n:'守護神の大波'},{g:'上',n:'イクラ流星群'},{g:'特上',n:'天の川のぼり'}];
+let adT=-1;
+function askGod(){
+  if(!B||paused||!B.canGod())return;
+  paused=true;
+  overlay(`<h2>守護神をよぶ?</h2><p>鮭の守護神さまは、ただいまCMの真っ最中。5秒の広告が終わったら、かけつけてくれます。</p><p class="note">何が起きるかは、来てからのお楽しみ。1分に1回よべます。</p><div class="row"><button class="pop" id="o-ad">広告を見てよぶ</button><button class="pop ghost" id="o-no">やめておく</button></div>`,
+    {'o-ad':()=>{$('over').hidden=true;adT=0;$('ad').hidden=false;Snd.setBgm('ad')},'o-no':()=>{$('over').hidden=true;paused=false}});
+}
+function tickAd(dt){
+  adT+=dt;const cv=$('ad-cv'),r=cv.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);
+  if(r.width){if(cv.width!==(r.width*d|0)||cv.height!==(r.height*d|0)){cv.width=r.width*d|0;cv.height=r.height*d|0}
+    const c=cv.getContext('2d');c.setTransform(d,0,0,d,0,0);drawAd(c,r.width,r.height,adT)}
+  $('ad-left').textContent=`あと${Math.max(1,Math.ceil(5-adT))}秒`;
+  if(adT<5)return;
+  adT=-1;$('ad').hidden=true;paused=false;
+  const q=Math.random();if(B)B.summon(q<.5?0:q<.9?1:2);
+}
+function drawAd(c,w,h,t){
+  const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#ffb994');g.addColorStop(.6,'#f7dcc0');c.fillStyle=g;c.fillRect(0,0,w,h);
+  const wy=h*.68;c.fillStyle='#2a8ea3';c.fillRect(0,wy,w,h-wy);c.fillStyle='#176477';c.fillRect(0,h-24,w,24);
+  const sc=Math.max(.7,Math.min(1.1,h/520));
+  ['shake','ikura','nigiri','beni','onigiri','king','ashi','oyako'].forEach((id,i)=>{const x=w+80-((t*150+i*130)%(w+320));c.save();c.translate(x,h-12);c.scale(sc,sc);A.drawActor(c,id,{t:t+i,sw:Math.sin(t*8+i),atk:0,roll:t*5});c.restore()});
+  const big=(s,y,fs,col,rot=0)=>{c.save();c.translate(w/2,y);c.rotate(rot);c.font=`${fs}px 'Dela Gothic One',sans-serif`;c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';c.fillStyle=A.INK;c.fillText(s,fs*.07,fs*.09);c.lineWidth=fs*.14;c.strokeStyle=A.INK;c.strokeText(s,0,0);c.fillStyle=col;c.fillText(s,0,0);c.restore()};
+  const fs=Math.min(w/9,h/6);
+  if(t<1.7)big('268kmを、',h*.36,fs,'#fffdf4');
+  else if(t<3.4)big('のぼりきれ。',h*.36,fs,'#fffdf4');
+  else{const k=Math.min(1,(t-3.4)/.25);big('サーモン大遡上',h*.3,Math.min(w/8,h/5)*(1.4-.4*k),'#ff8a5c',-.04);
+    if(t>3.8){c.save();c.translate(w/2,h*.52);c.rotate(.03);const tw=Math.min(w*.6,260),th=fs*.62;c.fillStyle='#ffe63b';c.fillRect(-tw/2,-th/2,tw,th);c.lineWidth=3;c.strokeStyle=A.INK;c.strokeRect(-tw/2,-th/2,tw,th);c.fillStyle='#e3170a';c.font=`${th*.6}px 'Dela Gothic One',sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText('好評遡上中!',0,2);c.restore()}}
+}
+press($('btn-god'),askGod);
 function fire(){if(B&&!paused&&B.fire())Snd.flood()}
 press($('btn-stom'),upStom);press($('btn-flood'),fire);
 $('btn-speed').onclick=()=>{speed=speed===1?2:1;$('btn-speed').textContent='×'+speed};
@@ -281,19 +360,34 @@ function finish(){
     if(first){save.prog[b.lap]=b.si+1;
       if(b.lap===0)for(const[k,d]of Object.entries(UNITS))if(d.via.clear===b.si&&!save.own[k]){save.own[k]=1;if(save.team.length<10)save.team.push(k);unlocked=k}}
     persist();
-    const ending=first&&b.si===STAGES.length-1&&b.lap<LAPS.length-1;
-    let extra=null,html=`<h2>${ending?'帰ってきた':'遡上成功'}</h2><div class="prize">イクラ +${fmt(gain)}</div>`;
+    const last=first&&b.si===STAGES.length-1,ending=last&&b.lap<LAPS.length-1;
+    let extra=null,html=`<h2>${last?'帰ってきた':'遡上成功'}</h2><div class="prize">イクラ +${fmt(gain)}</div>`;
     if(ending)html+=`<p>268km、泳ぎきった。川底に卵を産んで、この旅は終わる。4年後、この卵から生まれた子どもたちが、また帰ってくる。</p>`;
     if(unlocked){html+=`<p>${UNITS[unlocked].n}が仲間になった。</p>`;extra=portrait(unlocked,110)}
     html+=`<div class="row"><button class="pop" id="o-next">川へもどる</button></div>`;
     if(ending){save.lap=b.lap+1;persist()}
-    overlay(html,{'o-next':quit},extra);
+    const card=()=>overlay(html,{'o-next':quit},extra);
+    if(last)playEnding(b.lap,()=>{show('battle');card()});else card();
   }else{
     Snd.lose();const gain=Math.round(reward(b.si,b.lap,false)*.2);save.ikura+=gain;persist();
     const boss=b.es.find(e=>e.def.boss&&LOSE[e.id]),who=boss?boss.id:b.lastHit,L=LOSE[who];
     const body=L?L.p:'鮭の群れがちりぢりになった。';
     overlay(`<h2>${L?L.h:'流された'}</h2><p>${body}慰めのイクラ ${fmt(gain)} をもらった。いけすで仲間を強くして、もう一度。</p><div class="row"><button class="pop" id="o-again">もう一度</button><button class="pop ghost" id="o-next">川へもどる</button></div>`,{'o-next':quit,'o-again':()=>startBattle(b.si,b.lap)},L?loseCanvas(who):null,!!L);
   }
+}
+
+/* エンディング */
+const ecv=$('ecv'),ectx=ecv.getContext('2d');let et=0,eLap=0,eDone=null;
+function playEnding(lap,done){eLap=lap;eDone=done;et=0;$('e-next').hidden=true;Snd.setBgm('ending');show('ending')}
+function endEnding(){if(!eDone)return;const f=eDone;eDone=null;Snd.setBgm('normal');f()}
+$('e-skip').onclick=endEnding;$('e-next').onclick=endEnding;
+function tickEnding(dt){
+  et+=dt;const r=ecv.getBoundingClientRect(),d=Math.min(devicePixelRatio||1,2);if(!r.width)return;
+  if(ecv.width!==(r.width*d|0)||ecv.height!==(r.height*d|0)){ecv.width=r.width*d|0;ecv.height=r.height*d|0}
+  const k=Math.min(r.height/360,r.width/480),W=r.width/k,c=ectx;
+  c.setTransform(d,0,0,d,0,0);c.fillStyle='#0d1e26';c.fillRect(0,0,r.width,r.height);
+  c.setTransform(d*k,0,0,d*k,0,d*(r.height-360*k)/2);c.save();c.beginPath();c.rect(0,0,W,360);c.clip();A.drawEnding(c,et,W,eLap);c.restore();
+  if(et>A.ENDING_LEN-1.5)$('e-next').hidden=false;
 }
 
 /* カメラ操作 */
@@ -321,7 +415,12 @@ function drainFx(){
     else if(f.k==='kb'){vfx.push({k:'word',x:f.x,y:f.y-20,s:'ドン',col:'#fff',t:0,life:.4})}
     else if(f.k==='guard')vfx.push({k:'word',x:f.x,y:GROUND-70,s:'耐えた',col:'#ffe63b',t:0,life:.8});
     else if(f.k==='heal')vfx.push({k:'word',x:f.x,y:GROUND-58,s:'+',col:'#8dff9c',t:0,life:.5});
-    else if(f.k==='atk')vfx.push({...f,k:'atk',t:0,life:f.fx==='shout'?.7:.34});
+    else if(f.k==='atk')vfx.push({...f,k:'atk',t:0,life:f.fx==='shout'?.7:f.fx==='shoot'?.5:.34});
+    else if(f.k==='god'){vfx.push({k:'god',kind:f.kind,t:0,life:GOD_LIFE[f.kind]});Snd.god()}
+    else if(f.k==='godhit'){flash=Math.max(flash,.25);shakeT=.5;Snd.godhit()}
+    else if(f.k==='riser')vfx.push({k:'riser',x:f.x,t:0,life:.9});
+    else if(f.k==='sweep')vfx.push({k:'sweep',t:0,life:2,from:B.pbase.x,to:B.ebase.x});
+    else if(f.k==='fuse'){vfx.push({k:'fuse',x:f.x,t:0,life:.8});banner={s:`合体! ${FUSE[f.id].n}`,t:0,col:'#2a8ea3'};Snd.fuse();if(!save.fuse.includes(f.id)){save.fuse.push(f.id);persist()}}
     else if(f.k==='boss'){banner={s:`${f.name} があらわれた`,t:0};Snd.big()}
     else if(f.k==='shock'){shakeT=.5}
     else if(f.k==='wave'){flash=.25;shakeT=.4}
@@ -341,6 +440,8 @@ function drawAtkFx(c,f){
     case'clock':c.globalAlpha=1-a;c.lineWidth=3;c.strokeStyle='#fff7d6';for(let i=0;i<2;i++){c.beginPath();c.arc(f.tx,y-14,18+a*40+i*12,0,6.3);c.stroke()}c.globalAlpha=1;break;
     case'shout':c.lineWidth=5;c.strokeStyle=`rgba(255,230,59,${1-a})`;for(let i=0;i<3;i++){c.beginPath();c.arc(f.x-50,y-50,40+(a+i*.2)*f.life*340,2.2,4.1);c.stroke()}
       c.fillStyle='#fff';c.strokeStyle=A.INK;c.lineWidth=5;c.font="20px 'Dela Gothic One',sans-serif";c.textAlign='center';c.lineJoin='round';c.strokeText('今のぼる',f.x-90,y-120);c.fillText('今のぼる',f.x-90,y-120);break;
+    case'shoot':{const q=a<.5?a*2:2-a*2;c.translate(f.x+dx*q,GROUND-2);c.scale(.62,.62);A.drawActor(c,'onigiri',{t:0,sw:0,atk:0,roll:a*24});break}
+    case'scatter':for(let i=0;i<14;i++){const q=i/14*6.28;c.globalAlpha=1-a;c.fillStyle='#ff8a5c';c.fillRect(f.x+Math.cos(q)*a*60,GROUND-20+Math.sin(q)*a*34-a*10,5,3)}c.globalAlpha=1;break;
     case'kick':A.line(c,[[f.x-10,y-14],[f.tx+10,y-10]],3,'rgba(255,255,255,.75)');break;
     case'steam':c.globalAlpha=.5*(1-a);A.E(c,f.x,y-30,170*a+20,34,'#dff5e8',0,0);c.globalAlpha=1;break;
     case'line':c.lineWidth=1.6;c.strokeStyle='#f7f7f2';c.beginPath();c.moveTo(f.x+30,y-92);c.quadraticCurveTo((f.x+f.tx)/2,y-120,f.tx,y-14);c.stroke();break;
@@ -361,7 +462,7 @@ function drawOne(c,e,t){
   c.translate(-atk*(d.w>=90?4:7),0);
   if(e.state==='kb')c.rotate(.28);
   if(e.hurt>0&&((clock*40)|0)%2)c.globalAlpha=.55;
-  A.drawActor(c,e.id,{t:e.anim+e.seed*5,sw:Math.sin(e.walk),atk,roll:e.walk*1.7});
+  A.drawActor(c,e.id,{t:e.anim+e.seed*5,sw:Math.sin(e.walk),atk,roll:e.walk*1.7,lunge:e.lunge});
   c.restore();
   if(e.stun>0)word(c,'時',e.x,GROUND-62,'#fff7d6',16);
   else if(e.slow>0){c.globalAlpha=.8;A.E(c,e.x+6,GROUND-50-(d.fly||0),9,6,'#d8dedd',0,1.2);c.globalAlpha=1}
@@ -376,6 +477,58 @@ function drawDead(c,f){
     c.globalAlpha=1-a;for(let i=0;i<6;i++){const q=i/6*6.28;A.E(c,e.x+Math.cos(q)*a*40,GROUND-30+Math.sin(q)*a*30,8*(1-a)+2,8*(1-a)+2,'#fff',0,1.4)}c.globalAlpha=1;
   }
 }
+// 守護神の登場と技。画面に重ねて描く
+const GOD_LIFE=[4.3,4.4,5.4];
+function godWave(c,r,h,p,top){
+  const x=r+60-p*(r+400);
+  c.beginPath();c.moveTo(x+r+400,h);c.lineTo(x+40,h);c.quadraticCurveTo(x-30,top+(h-top)*.55,x+30,top+30);c.quadraticCurveTo(x+70,top-20,x+150,top);c.lineTo(x+r+400,top);c.closePath();
+  const g=c.createLinearGradient(x,0,x+400,0);g.addColorStop(0,'rgba(140,224,236,.95)');g.addColorStop(1,'rgba(31,127,149,.45)');c.fillStyle=g;c.fill();c.lineWidth=3;c.strokeStyle=A.INK;c.stroke();
+  for(let i=0;i<10;i++){const q=i/9;A.E(c,x+36-Math.sin(q*3.1)*40+Math.sin(clock*20+i)*4,h-q*(h-top),14+(i%3)*5,10+(i%2)*5,'#f7fdfc',i,0)}
+  return x;
+}
+function drawGod(c,f,r,h){
+  const t=f.t,L=f.life,s=Math.min(1.1,h/360),G=GODS[f.kind],wy=offY+WATER_Y*Sc;
+  let gx=r*.5,gy=h*.5-(1-Math.min(1,t/.6))**2*h*.8,rot=0,alpha=1;
+  c.save();
+  if(f.kind===0){
+    for(let i=0;i<3;i++){const p=(t-1-i*.7)/1.1;if(p<=0||p>=1)continue;const top=i===2?h*.2:h*.32,x=godWave(c,r,h,p,top);
+      // 3つ目の波と同時に、守護神が左へタックルする
+      if(i===2&&x+60<gx){gx=x+60;rot=-.1;c.globalAlpha=.7;for(let k=0;k<6;k++)A.line(c,[[gx+70+k*6,gy-40+k*16],[gx+170+k*14,gy-40+k*16]],3,'#fffdf4');c.globalAlpha=1}}
+    // 3つ目の波(t=2.4〜3.5)と一緒に画面の外へ抜けたら、そのまま消す
+    gy+=Math.sin(t*5)*6;if(t>=3.5)alpha=0;
+  }else if(f.kind===1){
+    for(let i=0;i<72;i++){const q=(t-1.1-i*.034)/.55;if(q<0||q>1)continue;const x=((i*.137)%1)*r*1.15+60-q*130,y=-20+q*(wy+30);
+      c.globalAlpha=.55;A.line(c,[[x+34,y-46],[x,y]],5,'#ffd3c2');c.globalAlpha=1;A.E(c,x,y,9,9,'#f0431f',0,2);A.dot(c,x-3,y-3,2.2,'#ffd3c2')}
+  }else{
+    const a=Math.max(0,Math.min(1,(t-1)*2,(L-.4-t)*2));
+    if(a>0){c.globalAlpha=.35*a;for(let i=0;i<7;i++){c.strokeStyle=`hsl(${i*50},90%,68%)`;c.lineWidth=7;c.beginPath();c.arc(r/2,h*1.1,h*.75+i*10,3.3,6.1);c.stroke()}c.globalAlpha=1}
+  }
+  c.restore();
+  if(f.kind!==0){const out=Math.max(0,(t-(L-.7))/.7);gy-=out*h*.4;alpha=1-out}
+  if(alpha>0){c.save();c.globalAlpha=alpha;c.translate(gx,gy);c.rotate(rot);c.scale(s*.68,s*.68);A.drawGuardian(c,t,f.kind);c.restore()}
+  const a=Math.min(1,t*4,(L-.6-t)*3);
+  if(a>0){c.save();c.globalAlpha=a;const y=74,bw=Math.min(r-24,340);c.fillStyle='#fffdf4';c.fillRect(r/2-bw/2,y-18,bw,36);c.lineWidth=3;c.strokeStyle=A.INK;c.strokeRect(r/2-bw/2,y-18,bw,36);
+    const bx=r/2-bw/2+30;c.beginPath();c.arc(bx,y,24,0,6.2832);c.fillStyle=f.kind===2?'#e3170a':f.kind===1?'#ff8a5c':'#2a8ea3';c.fill();c.stroke();
+    c.fillStyle='#fff';c.font=`${f.kind===2?15:20}px 'Dela Gothic One',sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText(G.g,bx,y+1);
+    c.fillStyle=A.INK;c.font="19px 'Dela Gothic One',sans-serif";c.fillText(G.n,r/2+18,y+1);c.restore()}
+}
+// 天の川のぼり:川底から空へのぼる鮭の列が、手前から敵の方へ走る。速さは sim.js の GOD_SWEEP・GOD_RISE と同じ
+const SWEEP_IDS=['shake','beni','gin','shake','king'],SWEEP_T=1,RISE_V=600,RISE_FROM=GROUND+30;
+function riseFish(c,x,y,i,t){
+  c.save();c.globalAlpha=.6;A.line(c,[[x,y+26],[x,y+90]],4,'#fff6b0');c.globalAlpha=1;
+  c.translate(x,y);c.rotate(Math.PI/2);c.scale(.62,.62);A.drawActor(c,SWEEP_IDS[i%5],{t:t*3+i,sw:0,atk:0,roll:0});c.restore();
+}
+function drawSweep(c,f){
+  const n=120,x0=cam-80,x1=cam+vw+80;
+  for(let i=0;i<n;i++){
+    const u=i/n,d=f.t-u*SWEEP_T;if(d<0)continue;
+    const y=RISE_FROM+((i*53)%30)-d*RISE_V;if(y<-160)continue;
+    const x=f.from-u*(f.from-f.to)+((i*37)%23-11);if(x<x0||x>x1)continue;
+    riseFish(c,x,y,i,f.t);
+  }
+}
+// 敵の真下からのぼる鮭。体に届くと敵が消える
+function drawRiser(c,f){const y=RISE_FROM-f.t*RISE_V;if(y>-160)riseFish(c,f.x,y,2,f.t)}
 function drawBaseHp(c,b,label){
   const y=b.side>0?144:74,w=86,x=b.x-w/2;
   c.fillStyle='rgba(13,52,64,.85)';c.fillRect(x,y,w,18);
@@ -409,6 +562,9 @@ function drawField(dt){
   // 演出
   for(const f of vfx){
     if(f.k==='atk')drawAtkFx(c,f);
+    else if(f.k==='riser')drawRiser(c,f);
+    else if(f.k==='fuse'){const a=f.t/f.life;c.save();c.globalAlpha=1-a;for(let i=0;i<3;i++){c.lineWidth=4;c.strokeStyle=['#ffe63b','#fff','#ff8a5c'][i];c.beginPath();c.arc(f.x,GROUND-34,20+a*(70+i*22),0,6.2832);c.stroke()}c.restore();if(a<.4)burst(c,f.x,GROUND-34,40*(1-a),'#fff6b0')}
+    else if(f.k==='sweep')drawSweep(c,f);
     else if(f.k==='hit')burst(c,f.x,f.y,(f.big?26:14)*(1-f.t/f.life*.5),f.big?'#ffe63b':'#fff');
     else if(f.k==='word'){c.globalAlpha=Math.min(1,(1-f.t/f.life)*2);word(c,f.s,f.x,f.y-f.t*24,f.col,f.s.length>2?14:17);c.globalAlpha=1}
   }
@@ -422,6 +578,7 @@ function drawField(dt){
   drawBaseHp(c,B.ebase,`${fmt(B.ebase.hp)} / ${fmt(B.ebase.max)}`);
   drawBaseHp(c,B.pbase,`${fmt(B.pbase.hp)} / ${fmt(B.pbase.max)}`);
   c.restore();
+  for(const f of vfx)if(f.k==='god')drawGod(c,f,r,h);
   // 全体図
   const mx=16,mw=r-32,my=48,per=mw/B.L;
   c.fillStyle='rgba(13,52,64,.6)';c.fillRect(mx,my,mw,8);
@@ -429,7 +586,7 @@ function drawField(dt){
   for(const e of B.us){c.fillStyle='#ff8a5c';c.fillRect(mx+e.x*per-1,my+1,2.4,6)}
   for(const e of B.es){c.fillStyle=e.def.boss?'#ffe63b':'#17242c';c.fillRect(mx+e.x*per-1,my+1,e.def.boss?4:2.4,6)}
   if(flash>0){c.fillStyle=`rgba(255,255,255,${flash*2})`;c.fillRect(0,0,r,h)}
-  if(banner&&banner.t<2.2){const a=Math.min(1,Math.min(banner.t*5,(2.2-banner.t)*3));c.globalAlpha=a;c.fillStyle='#e3170a';c.fillRect(0,h*.26,r,44);word(c,banner.s,r/2,h*.26+23,'#ffe63b',Math.min(26,r/14));c.globalAlpha=1}
+  if(banner&&banner.t<2.2){const a=Math.min(1,Math.min(banner.t*5,(2.2-banner.t)*3));c.globalAlpha=a;c.fillStyle=banner.col||'#e3170a';c.fillRect(0,h*.26,r,44);word(c,banner.s,r/2,h*.26+23,'#ffe63b',Math.min(26,r/14));c.globalAlpha=1}
 }
 let slotCache=[];
 function syncHud(){
@@ -445,6 +602,8 @@ function syncHud(){
   const st=$('btn-stom'),fl=$('btn-flood'),mx=B.stom>=STOM.max;
   st.querySelector('b').textContent=`胃袋 Lv${B.stom}`;st.querySelector('small').textContent=mx?'最大':`${STOM.cost(B.stom)}で+${STOM.cap(B.stom+1)-STOM.cap(B.stom)}`;
   st.style.setProperty('--c',mx?1:Math.min(1,B.money/STOM.cost(B.stom)));st.classList.toggle('ready',B.canUp());
+  const gb=$('btn-god'),gc=B.god.cd,gs=gc>0?`あと${Math.floor(Math.ceil(gc)/60)}:${String(Math.ceil(gc)%60).padStart(2,'0')}`:'CMのあとで';
+  if(gb._s!==gs){gb._s=gs;gb.querySelector('small').textContent=gs}gb.classList.toggle('ready',B.canGod()&&!paused);gb.disabled=gc>0||!!B.over;
   const ready=B.canFire();fl.classList.toggle('ready',ready);fl.style.setProperty('--c',B.flood.c/B.flood.need);fl.querySelector('small').textContent=ready?'押すと発射':`${Math.ceil(B.flood.need-B.flood.c)}秒`;
 }
 function tickBattle(dt){
@@ -456,11 +615,12 @@ function tickBattle(dt){
     else{const front=B.us.length?Math.min(...B.us.map(e=>e.x)):B.L,target=front-vw*.32;cam+=(target-cam)*Math.min(1,dt*1.6);clampCam()}
   }
   drainFx();
-  for(const f of vfx)f.t+=paused?0:dt;
+  // 演出もゲームの速さに合わせる。×2で当たる時刻と絵がずれないように
+  for(const f of vfx)f.t+=paused?0:dt*speed;
   vfx=vfx.filter(f=>f.t<f.life);
   if(!paused){shakeT=Math.max(0,shakeT-dt);flash=Math.max(0,flash-dt);if(banner)banner.t+=dt}
   drawField(dt);syncHud();
-  Snd.setBgm(!B.over&&B.es.some(e=>e.def.boss)?'boss':'normal');
+  if(adT<0)Snd.setBgm(!B.over&&B.es.some(e=>e.def.boss)?'boss':'normal');
   if(scene)scene();
   if(B.over&&!endQueued){endQueued=true;setTimeout(finish,900)}
 }
@@ -491,7 +651,7 @@ function frame(now){
   requestAnimationFrame(frame);
   const dt=Math.min(.05,(now-last)/1000);last=now;clock+=dt;
   if(document.hidden)return;
-  if(view==='battle')tickBattle(dt);else if(view==='title')drawParade();
+  if(view==='battle'){tickBattle(dt);if(adT>=0)tickAd(dt)}else if(view==='ending')tickEnding(dt);else if(view==='title')drawParade();
 }
 
 $('btn-start').onclick=()=>{Snd.wake();show('menu')};
@@ -502,6 +662,6 @@ sndBtn.onclick=()=>{save.snd=!save.snd;persist();sndLabel();if(save.snd)Snd.wake
 for(const ev of['touchend','pointerup'])addEventListener(ev,()=>Snd.wake(),{passive:true});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&view==='battle'&&B&&!B.over&&!paused)togglePause()});
 show('title');
-window.__g={get B(){return B},startBattle,get save(){return save},setTab,show,Snd,quit};
+window.__g={get B(){return B},deploy,startBattle,get save(){return save},setTab,show,Snd,quit,playEnding,get adT(){return adT},set et(v){et=v},get et(){return et},finish};
 requestAnimationFrame(frame);
 })();

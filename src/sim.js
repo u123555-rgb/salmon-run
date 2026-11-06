@@ -1,6 +1,7 @@
 window.SALMON=(()=>{
 'use strict';
 const VH=330,WATER_Y=205,GROUND=282,KB_T=.55;
+const GOD_CD=60,GOD_SWEEP=1,GOD_RISE=600; // 守護神は1分に1回。天の川の列が川の端から端まで走る秒数と、のぼる鮭の速さ
 const TRAIT={fish:'川魚',shell:'カニ',bird:'鳥',beast:'ケモノ',human:'ヒト'};
 const LAPS=[{n:'1回目の遡上',m:1,r:1},{n:'4年後の遡上',m:2.5,r:2},{n:'8年後の遡上',m:6,r:3.5}];
 const RARE={N:'基本',R:'白皿',SR:'金皿',UR:'黒皿'};
@@ -55,6 +56,17 @@ keiji:{n:'鮭児',r:'UR',via:'gacha',cost:700,cd:20,hp:980,atk:560,rate:1,wind:.
   txt:'一万匹に一匹といわれる幻の若い鮭。脂のりが異常。'},
 osuke:{n:'鮭の大助',r:'UR',via:'gacha',cost:1500,cd:40,hp:6500,atk:1300,rate:3.6,wind:1,range:300,area:300,sp:14,kb:2,w:130,kbc:.5,fx:'shout',
   txt:'東北の言い伝えの鮭の王。「鮭の大助、今のぼる」と叫ぶ。'},
+};
+
+// 合体。出撃の値札を2つ同時に押した時だけ、2体が1体になる
+// 体力と1秒あたりのダメージは元の2体の合計にそろえ、特技を1つ足す(ドリブル:範囲シュート、紅白:オキアミ1.5倍、まぶし:転がりながら範囲)
+const FUSE={
+dribble:{n:'鮭ドリブル',of:['ashi','onigiri'],hp:640,atk:218,rate:1.4,wind:.35,range:125,area:50,sp:66,kb:4,w:52,kbc:.3,fx:'shoot',
+  txt:'脚サーモンが鮭おにぎりをドリブルする。シュートしたおにぎりは足元に戻ってくる。'},
+kohaku:{n:'紅白鮭合戦',of:['beni','shake'],hp:590,atk:125,rate:1.1,wind:.3,range:42,sp:50,kb:3,w:50,crit:.3,goldUp:1.5,fx:'bite',
+  txt:'紅と白がそろってめでたい。場にいる間、敵を倒した時のオキアミが1.5倍になる。'},
+mabushi:{n:'鮭まぶしおにぎり',of:['flake','onigiri'],hp:430,atk:45,rate:.5,wind:.1,range:30,sp:90,kb:2,w:40,roll:1,area:70,fx:'scatter',
+  txt:'鮭フレークをまとって転がる。飛び散ったフレークがまわりの敵にも当たる。'},
 };
 
 const ENEMIES={
@@ -134,7 +146,7 @@ class Battle{
     this.slots=cfg.slots.map(x=>({id:x.id,lv:x.lv,def:UNITS[x.id],cd:0}));
     this.flood={c:0,need:cfg.floodNeed,dmg:cfg.floodDmg};
     this.rules=s.rules.map(r=>({...r,on:false,cnt:0,next:0}));
-    this.kills=0;this.lastHit=null;
+    this.kills=0;this.lastHit=null;this.god={cd:0};
   }
   get income(){return STOM.income(this.stom)*this.cfg.income}
   get cap(){return STOM.cap(this.stom)}
@@ -142,13 +154,24 @@ class Battle{
   deploy(i){
     if(!this.canDeploy(i))return false;
     const s=this.slots[i];this.money-=s.def.cost;s.cd=s.def.cd;
-    const n=s.def.count||1;
-    for(let k=0;k<n;k++)this.addUnit(s.id,s.lv,this.pbase.x-44-k*16);
+    const n=s.def.count||1;s.last=[];s.at=this.time;
+    for(let k=0;k<n;k++)s.last.push(this.addUnit(s.id,s.lv,this.pbase.x-44-k*16));
     this.fx.push({k:'spawn',x:this.pbase.x-44,side:1});
     return true;
   }
+  // 2つの値札の仲間が合体できるなら、その合体の名前を返す
+  fuseOf(a,b){const x=this.slots[a]?.id,y=this.slots[b]?.id;if(!x||!y||x===y)return null;for(const[k,f]of Object.entries(FUSE))if(f.of.includes(x)&&f.of.includes(y))return k;return null}
+  // 値札aを押した直後に値札bが押された時。aで出たばかりの仲間を引っこめて、合体した1体を出す
+  fuse(a,b,fid){
+    const sa=this.slots[a],sb=this.slots[b];
+    if(!this.canDeploy(b)||!sa.last||this.time-sa.at>.5||!sa.last.every(u=>u.alive))return false;
+    this.money-=sb.def.cost;sb.cd=sb.def.cd;
+    for(const u of sa.last)u.alive=false;this.us=this.us.filter(u=>u.alive);sa.last=null;
+    const x=this.pbase.x-44;this.addUnit(fid,Math.round((sa.lv+sb.lv)/2),x);this.fx.push({k:'fuse',x,id:fid});
+    return true;
+  }
   addUnit(id,lv,x){
-    const d=UNITS[id],m=lvMul(lv);
+    const d=UNITS[id]||FUSE[id],m=lvMul(lv);
     const e=this.make(d,1,x,d.hp*m,d.atk*m);e.shield=!!d.shield;e.lv=lv;e.id=id;
     this.us.push(e);return e;
   }
@@ -164,6 +187,33 @@ class Battle{
   }
   canUp(){return this.stom<STOM.max&&this.money>=STOM.cost(this.stom)&&!this.over}
   upStom(){if(!this.canUp())return false;this.money-=STOM.cost(this.stom);this.stom++;return true}
+  // 鮭の守護神。広告のあとに呼ぶ。kindは0並 1上 2特上。姿が見えてから少しして効く
+  canGod(){return this.god.cd<=0&&!this.over}
+  summon(kind){
+    if(!this.canGod())return false;
+    this.god.cd=GOD_CD;this.fx.push({k:'god',kind});
+    const later=(t,fn)=>this.queue.push({t,fn});
+    const hitAll=(r,fn)=>{for(const e of this.es){if(!e.alive)continue;const boss=!!e.def.boss;this.fx.push({k:'hit',x:e.x,y:GROUND-40-(e.def.fly||0),big:1});this.damage(e,e.maxhp*r[boss?1:0]);if(e.alive&&fn)fn(e,boss)}};
+    // 並:3連の波。1回ごとに押し返す
+    if(kind===0)for(let i=0;i<3;i++)later(1.5+i*.7,()=>{this.fx.push({k:'godhit',kind});hitAll([.4/3,.04],e=>this.knock(e))});
+    // 上:流星が3回に分けて当たる。最初の1回で時が止まる
+    if(kind===1){later(1.4,()=>{this.money=this.cap});for(let i=0;i<3;i++)later(1.4+i*.8,()=>{this.fx.push({k:'godhit',kind});hitAll([.1,.035],(e,boss)=>{if(i===0)e.stun=boss?2.5:5})})}
+    // 特上:鮭が川から空へのぼる列が、手前から敵の方へ3回走る。当たった敵は消える(ボスは削る)
+    if(kind===2){
+      later(1.2,()=>{this.fx.push({k:'godhit',kind});for(const u of this.us)u.hp=u.maxhp});
+      const from=this.pbase.x,span=from-this.ebase.x;
+      for(let i=0;i<3;i++)later(1.2+i*1.1,()=>{
+        this.fx.push({k:'sweep'});
+        // 列が来たら敵の真下から鮭がのぼり、その鮭が体に届いた時に当たる
+        for(const e of this.es)later(Math.max(0,(from-e.x)/span)*GOD_SWEEP,()=>{
+          if(!e.alive)return;this.fx.push({k:'riser',x:e.x});
+          later((60+(e.def.fly||0))/GOD_RISE,()=>{if(e.alive)this.damage(e,e.maxhp*(e.def.boss?.12:1))});
+        });
+        later(GOD_SWEEP,()=>{this.ebase.hp-=this.ebase.max*.05;this.ebase.shake=.3});
+      });
+    }
+    return true;
+  }
   canFire(){return this.flood.c>=this.flood.need&&!this.over&&!this.wave}
   fire(){if(!this.canFire())return false;this.flood.c=0;this.wave={x:this.pbase.x,hit:new Set()};this.fx.push({k:'wave'});return true}
 
@@ -185,6 +235,7 @@ class Battle{
     this.money=Math.min(this.cap,this.money+this.income*dt);
     for(const s of this.slots)s.cd=Math.max(0,s.cd-dt);
     this.flood.c=Math.min(this.flood.need,this.flood.c+dt);
+    this.god.cd=Math.max(0,this.god.cd-dt);
     this.pbase.shake=Math.max(0,this.pbase.shake-dt);this.ebase.shake=Math.max(0,this.ebase.shake-dt);
     const pct=this.ebase.hp/this.ebase.max*100;
     for(const r of this.rules){
@@ -231,7 +282,7 @@ class Battle{
       e.timer-=dt;
       if(e.timer<=0){
         const t=this.nearest(e);
-        if(t){this.strike(e,t);e.timer=d.rate}
+        if(t){if(d.area)this.fx.push({k:'atk',fx:d.fx,x:e.x,tx:t.x,side:e.side,lane:e.lane,fly:0});this.strike(e,t);e.timer=d.rate}
       }
       return;
     }
@@ -299,9 +350,9 @@ class Battle{
   knock(t){if(!t.alive)return;t.state='kb';t.timer=KB_T;this.fx.push({k:'kb',x:t.x,y:GROUND-40})}
   kill(t){
     t.alive=false;this.fx.push({k:'die',e:t});
-    if(t.side<0){this.kills++;this.money=Math.min(this.cap,this.money+t.def.gold)}
+    if(t.side<0){this.kills++;this.money=Math.min(this.cap,this.money+t.def.gold*(this.us.some(u=>u.alive&&u.def.goldUp)?1.5:1))}
     else if(t.def.onDeath){const o=t.def.onDeath;for(let i=0;i<o.n;i++){const u=this.addUnit(o.id,t.lv,t.x+(i-3)*14);u.state='move'}}
   }
 }
-return{VH,WATER_Y,GROUND,TRAIT,LAPS,RARE,UNITS,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle};
+return{VH,WATER_Y,GROUND,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle};
 })();

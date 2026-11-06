@@ -36,6 +36,15 @@ button:focus-visible{outline:3px solid var(--pop);outline-offset:2px}
 .title-box h1{margin:0;font-family:var(--display);font-weight:400;font-size:clamp(46px,12vw,112px);line-height:1.02;color:var(--salmon);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:5px 6px 0 var(--ink);transform:rotate(-2.5deg);letter-spacing:.01em;text-wrap:balance}
 .title-box p{margin:0;font-family:var(--tag);font-size:clamp(17px,3.4vw,24px);color:var(--ink);background:var(--pop);border:3px solid var(--ink);padding:.15em .7em;transform:rotate(1.2deg)}
 
+.ver{position:absolute;left:max(10px,env(safe-area-inset-left,0px));top:6px;z-index:1;font-size:11px;color:#fff;text-shadow:0 1px 2px rgba(23,36,44,.7);font-variant-numeric:tabular-nums;pointer-events:none}
+
+/* エンディング */
+#v-ending{background:#0d1e26}
+#ecv{position:absolute;inset:0;width:100%;height:100%;display:block}
+#e-skip{position:absolute;right:max(12px,env(safe-area-inset-right,0px));top:10px;width:auto;padding:0 10px;font-size:13px;opacity:.85}
+.e-foot{position:absolute;left:0;right:0;bottom:6%;display:flex;justify-content:center;pointer-events:none}
+.e-foot .pop{pointer-events:auto}
+
 /* メニュー */
 #v-menu{background:var(--river)}
 .topbar{display:flex;align-items:center;gap:10px;padding-block:10px;background:var(--ink);flex:none}
@@ -111,6 +120,16 @@ h2{font-family:var(--display);font-weight:400;font-size:21px;margin:0}
 .meta small{color:var(--mute);font-size:13px}
 .meta .pop{font-family:var(--body);font-weight:900;font-size:14px;box-shadow:3px 3px 0 #000;align-self:flex-start}
 h2.mt{margin-top:26px}
+.fuse-hint{margin:4px 0 0;font-size:13px;color:var(--mute)}
+.fuses{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:10px}
+.fuse{display:flex;gap:10px;align-items:center;min-width:0;background:var(--paper);color:var(--ink);border:3px solid var(--ink);padding:8px}
+.fuse canvas{width:64px;height:64px;flex:none}
+.fuse>div{min-width:0;display:flex;flex-direction:column;gap:2px}
+.fuse b{font-weight:900;font-size:15px}
+.fuse small{font-size:12px;line-height:1.45;color:#4f5f64}
+.fuse.lock{background:#30505a;color:#8fb0b6;border-color:#1e3a44}
+.fuse.lock small{color:#8fb0b6}
+.fuse .q{width:64px;height:64px;flex:none;display:flex;align-items:center;justify-content:center;background:#24424b;font-family:var(--display);font-size:30px;color:#8fb0b6}
 
 /* 回転レーン */
 .lanebox{background:#2a2730;border:3px solid var(--ink);overflow:hidden;position:relative;height:96px;margin:12px 0}
@@ -150,6 +169,22 @@ h2.mt{margin-top:26px}
 #hud-money.full em::after{content:"満腹";margin-left:4px;color:var(--roe)}
 #hud-money.grow{animation:grow .35s}
 @keyframes grow{0%{transform:scale(1.22)}100%{transform:scale(1)}}
+#btn-god{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:4px 2px;min-width:0;background:#c7d3d3;color:#5b6b70;border:2px solid #000;line-height:1}
+#btn-god b{display:flex;align-items:center;gap:4px;font-family:var(--display);font-weight:400;font-size:14px}
+#btn-god small{font-family:var(--tag);font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
+#btn-god .tv{position:relative;width:16px;height:12px;border:2px solid currentColor;border-radius:3px;background:#7fd9e6;flex:none;margin-top:3px}
+#btn-god .tv::before,#btn-god .tv::after{content:"";position:absolute;top:-7px;width:2px;height:6px;background:currentColor}
+#btn-god .tv::before{left:3px;transform:rotate(-30deg)}#btn-god .tv::after{right:3px;transform:rotate(30deg)}
+#btn-god.ready{background:var(--pop);color:var(--roe);animation:ready .7s infinite alternate}
+#btn-god:disabled{cursor:default}
+.side{display:flex;flex-direction:column;gap:4px;min-width:0}
+.side .big{flex:1}
+.card .note{font-size:13px;color:#5b6b70}
+#ad{position:absolute;inset:0;z-index:8;background:#000}
+#ad-cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+#ad .ad-tag,#ad .ad-left{position:absolute;top:10px;font-family:var(--body);font-weight:900;font-size:13px;padding:3px 9px;background:rgba(23,36,44,.82);color:#fff}
+#ad .ad-tag{left:max(12px,env(safe-area-inset-left,0px))}
+#ad .ad-left{right:max(12px,env(safe-area-inset-right,0px));font-variant-numeric:tabular-nums}
 .hbtn{width:38px;height:32px;background:var(--paper);color:var(--ink);border:2px solid var(--ink);font-weight:900;font-size:15px;flex:none}
 .panel{flex:none;background:var(--ink);display:grid;grid-template-columns:96px minmax(0,1fr) 96px;gap:8px;padding-block:8px}
 .slots{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
@@ -195,15 +230,19 @@ h2.mt{margin-top:26px}
   .ike{grid-template-columns:minmax(0,1fr)}
   .detail{position:static;order:-1}
   .gacha{grid-template-columns:minmax(0,1fr)}
-  .panel{grid-template-columns:1fr 1fr}
+  .panel{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
   .panel .slots{grid-column:1/-1;grid-row:2}
   .big{height:46px;flex-direction:row;gap:8px}
+  .side{flex-direction:row}.side>*{flex:1}
   .slot{height:62px}
 }
 @media (max-height:480px){
   .panel{grid-template-columns:82px minmax(0,1fr) 82px;padding-block:5px}
   .panel .slots{grid-column:auto;grid-row:auto;grid-template-columns:repeat(10,minmax(0,1fr))}
   .big{height:auto;flex-direction:column;gap:0}
+  .side{flex-direction:column}.side .big{padding:2px}
+  .side .big b{font-size:14px}.side .big small{font-size:12px}
+  #btn-god{padding:3px 2px}#btn-god b{font-size:13px}#btn-god small{font-size:10px}
   .slot{height:58px}
   .slot kbd{display:none}
 }
@@ -215,12 +254,13 @@ h2.mt{margin-top:26px}
   .card.scene p{font-size:13px;line-height:1.5}
   .card.scene .pop{font-size:15px}
 }
-@media (prefers-reduced-motion:reduce){.belt,.big.ready,.reveal.pulse,.slot.flash,#hud-money.full,#hud-money.grow{animation:none}}
+@media (prefers-reduced-motion:reduce){#btn-god.ready,.belt,.big.ready,.reveal.pulse,.slot.flash,#hud-money.full,#hud-money.grow{animation:none}}
 </style>
 
 <div id="app">
   <section class="view" id="v-title">
     <canvas id="parade" aria-hidden="true"></canvas>
+    <small class="ver">ver.2026.11.06-01</small>
     <div class="title-box gut">
       <h1>サーモン<br>大遡上</h1>
       <p>生まれた川まで、あと268km。</p>
@@ -260,9 +300,18 @@ h2.mt{margin-top:26px}
     <div class="panel gut">
       <button class="big" id="btn-stom"><i class="fill"></i><b>胃袋 Lv1</b><small></small></button>
       <div class="slots" id="slots"></div>
-      <button class="big" id="btn-flood"><i class="fill"></i><b>鉄砲水</b><small></small></button>
+      <div class="side">
+        <button id="btn-god" aria-label="広告を見て守護神をよぶ"><b><i class="tv" aria-hidden="true"></i>守護神</b><small>CMのあとで</small></button>
+        <button class="big" id="btn-flood"><i class="fill"></i><b>鉄砲水</b><small></small></button>
+      </div>
     </div>
     <div class="over gut" id="over" hidden><div class="card" id="over-card"></div></div>
+    <div id="ad" hidden><canvas id="ad-cv"></canvas><span class="ad-tag">広告(仮)</span><span class="ad-left" id="ad-left">あと5秒</span></div>
+  </section>
+  <section class="view" id="v-ending" hidden>
+    <canvas id="ecv" aria-label="エンディング"></canvas>
+    <button class="hbtn" id="e-skip">とばす</button>
+    <div class="e-foot"><button class="pop" id="e-next" hidden>つづける</button></div>
   </section>
   <div id="toast" hidden></div>
 </div>
