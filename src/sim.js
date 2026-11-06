@@ -1,7 +1,9 @@
 window.SALMON=(()=>{
 'use strict';
 const VH=330,WATER_Y=205,GROUND=282,KB_T=.55;
-const GOD_CD=60,GOD_SWEEP=1,GOD_RISE=600; // 守護神は1分に1回。天の川の列が川の端から端まで走る秒数と、のぼる鮭の速さ
+const GOD_CD=120,GOD_SWEEP=1,GOD_RISE=600; // 守護神は2分に1回。天の川の列が川の端から端まで走る秒数と、のぼる鮭の速さ
+// 守護神の3回の攻撃が始まる時刻(呼んでからの秒)。並・上・特上の順。画面の音もこの表で先に予約する
+const GOD_HITS=[[1.5,2.2,2.9],[1.4,2.2,3],[1.2,2.3,3.4]];
 const TRAIT={fish:'川魚',shell:'カニ',bird:'鳥',beast:'ケモノ',human:'ヒト'};
 const LAPS=[{n:'1回目の遡上',m:1,r:1},{n:'4年後の遡上',m:2.5,r:2},{n:'8年後の遡上',m:6,r:3.5}];
 const RARE={N:'基本',R:'白皿',SR:'金皿',UR:'黒皿'};
@@ -191,18 +193,18 @@ class Battle{
   canGod(){return this.god.cd<=0&&!this.over}
   summon(kind){
     if(!this.canGod())return false;
-    this.god.cd=GOD_CD;this.fx.push({k:'god',kind});
+    this.god.cd=GOD_CD;this.fx.push({k:'god',kind,t:this.time});
     const later=(t,fn)=>this.queue.push({t,fn});
     const hitAll=(r,fn)=>{for(const e of this.es){if(!e.alive)continue;const boss=!!e.def.boss;this.fx.push({k:'hit',x:e.x,y:GROUND-40-(e.def.fly||0),big:1});this.damage(e,e.maxhp*r[boss?1:0]);if(e.alive&&fn)fn(e,boss)}};
     // 並:3連の波。1回ごとに押し返す
-    if(kind===0)for(let i=0;i<3;i++)later(1.5+i*.7,()=>{this.fx.push({k:'godhit',kind});hitAll([.4/3,.04],e=>this.knock(e))});
+    if(kind===0)for(let i=0;i<3;i++)later(GOD_HITS[0][i],()=>{this.fx.push({k:'godhit',kind});hitAll([.4/3,.04],e=>this.knock(e))});
     // 上:流星が3回に分けて当たる。最初の1回で時が止まる
-    if(kind===1){later(1.4,()=>{this.money=this.cap});for(let i=0;i<3;i++)later(1.4+i*.8,()=>{this.fx.push({k:'godhit',kind});hitAll([.1,.035],(e,boss)=>{if(i===0)e.stun=boss?2.5:5})})}
+    if(kind===1){later(GOD_HITS[1][0],()=>{this.money=this.cap});for(let i=0;i<3;i++)later(GOD_HITS[1][i],()=>{this.fx.push({k:'godhit',kind});hitAll([.1,.035],(e,boss)=>{if(i===0)e.stun=boss?2.5:5})})}
     // 特上:鮭が川から空へのぼる列が、手前から敵の方へ3回走る。当たった敵は消える(ボスは削る)
     if(kind===2){
-      later(1.2,()=>{this.fx.push({k:'godhit',kind});for(const u of this.us)u.hp=u.maxhp});
+      later(GOD_HITS[2][0],()=>{this.fx.push({k:'godhit',kind});for(const u of this.us)u.hp=u.maxhp});
       const from=this.pbase.x,span=from-this.ebase.x;
-      for(let i=0;i<3;i++)later(1.2+i*1.1,()=>{
+      for(let i=0;i<3;i++)later(GOD_HITS[2][i],()=>{
         this.fx.push({k:'sweep'});
         // 列が来たら敵の真下から鮭がのぼり、その鮭が体に届いた時に当たる
         for(const e of this.es)later(Math.max(0,(from-e.x)/span)*GOD_SWEEP,()=>{
@@ -354,5 +356,5 @@ class Battle{
     else if(t.def.onDeath){const o=t.def.onDeath;for(let i=0;i<o.n;i++){const u=this.addUnit(o.id,t.lv,t.x+(i-3)*14);u.state='move'}}
   }
 }
-return{VH,WATER_Y,GROUND,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle};
+return{VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle};
 })();

@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const G=window.SALMON,A=window.SALMON_ART;
-const{VH,WATER_Y,GROUND,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle}=G;
+const{VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle}=G;
 const $=id=>document.getElementById(id);
 const fmt=n=>Math.floor(n).toLocaleString('ja-JP');
 const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -35,7 +35,7 @@ const SONG=(()=>{
 const Snd={ac:null,timer:null,step:0,mode:'normal',
   wake(){if(!save.snd)return;if(!this.ac){const C=window.AudioContext||window.webkitAudioContext;if(!C)return;this.ac=new C()}if(this.ac.state!=='running')this.ac.resume();this.bgm()},
   tone(f,d=.1,type='triangle',v=.05,when=0,to){if(!this.ac||!save.snd)return;const t=this.ac.currentTime+when,o=this.ac.createOscillator(),g=this.ac.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(to)o.frequency.exponentialRampToValueAtTime(to,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0008,t+d);o.connect(g).connect(this.ac.destination);o.start(t);o.stop(t+d+.02)},
-  noise(d=.3,v=.08,fc=900){if(!this.ac||!save.snd)return;const n=this.ac.sampleRate*d|0,b=this.ac.createBuffer(1,n,this.ac.sampleRate),a=b.getChannelData(0);for(let i=0;i<n;i++)a[i]=(Math.random()*2-1)*(1-i/n);const s=this.ac.createBufferSource(),f=this.ac.createBiquadFilter(),g=this.ac.createGain();s.buffer=b;f.type='lowpass';f.frequency.value=fc;g.gain.value=v;s.connect(f).connect(g).connect(this.ac.destination);s.start()},
+  noise(d=.3,v=.08,fc=900,when=0){if(!this.ac||!save.snd)return;const n=this.ac.sampleRate*d|0,b=this.ac.createBuffer(1,n,this.ac.sampleRate),a=b.getChannelData(0);for(let i=0;i<n;i++)a[i]=(Math.random()*2-1)*(1-i/n);const s=this.ac.createBufferSource(),f=this.ac.createBiquadFilter(),g=this.ac.createGain();s.buffer=b;f.type='lowpass';f.frequency.value=fc;g.gain.value=v;s.connect(f).connect(g).connect(this.ac.destination);s.start(this.ac.currentTime+when)},
   note(f,d,v,when,type='sine'){if(!this.ac||!save.snd)return;const t=this.ac.currentTime+when,o=this.ac.createOscillator(),g=this.ac.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v,t+.04);g.gain.exponentialRampToValueAtTime(.0008,t+d);o.connect(g).connect(this.ac.destination);o.start(t);o.stop(t+d+.05)},
   // 少し先まで予約して鳴らす。setIntervalの揺れを拍に出さないため
   song(){
@@ -51,8 +51,11 @@ const Snd={ac:null,timer:null,step:0,mode:'normal',
     }
   },
   bgm(){if(this.timer)return;
-    if(this.mode==='ad'){const m=[523,659,784,1046,784,659,698,587,523,659,784,880,784,0,1046,0];
-      this.timer=setInterval(()=>{if(!save.snd||document.hidden)return;const i=this.step++%16;if(m[i])this.tone(m[i],.13,'square',.022);if(i%4===0)this.tone(i%8?196:131,.2,'triangle',.05)},150);
+    // 広告の曲は音の時計で少し先まで予約する。スマホで画面の処理が重くても拍がもたつかないように
+    if(this.mode==='ad'){const m=[523,659,784,1046,784,659,698,587,523,659,784,880,784,0,1046,0];this.next=0;
+      this.timer=setInterval(()=>{const a=this.ac;if(!save.snd||document.hidden||!a){this.next=0;return}
+        if(this.next<a.currentTime)this.next=a.currentTime+.05;
+        while(this.next<a.currentTime+.3){const i=this.step++%16,w=this.next-a.currentTime;if(m[i])this.tone(m[i],.13,'square',.022,w);if(i%4===0)this.tone(i%8?196:131,.2,'triangle',.05,w);this.next+=.15}},60);
       return}
     if(this.mode==='ending'){this.next=0;this.timer=setInterval(()=>{if(!save.snd||document.hidden||!this.ac){this.next=0;return}this.song()},60);return}
     if(this.mode==='boss'){const bass=[110,110,131,110,147,156,147,131],mel=[440,0,523,494,440,0,392,415];
@@ -70,7 +73,17 @@ const Snd={ac:null,timer:null,step:0,mode:'normal',
   flood(){this.noise(1.1,.16,520);this.tone(90,.9,'sawtooth',.05,0,40)},
   win(){[523,659,784,1046].forEach((f,i)=>this.tone(f,.26,'triangle',.07,i*.13))},lose(){[392,330,262,196].forEach((f,i)=>this.tone(f,.32,'triangle',.06,i*.17))},
   god(){[523,659,784,1046,1318].forEach((f,i)=>this.tone(f,.6,'triangle',.05,i*.09));this.tone(1568,1.2,'sine',.03,.5)},
-  godhit(){this.noise(1,.14,900);this.tone(98,.8,'sawtooth',.05,0,49)},
+  godhit(w=0){this.noise(1,.14,900,w);this.tone(98,.8,'sawtooth',.05,w,49)},
+  // 天の川の列が手前から敵の方へ走る1秒。ざっと上がる水音に、のぼる鮭のきらきらを重ねる
+  sweep(w=0){if(!this.ac||!save.snd)return;const a=this.ac,t=a.currentTime+w,n=a.sampleRate*1.1|0,b=a.createBuffer(1,n,a.sampleRate),d=b.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;
+    const s=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain();s.buffer=b;f.type='bandpass';f.Q.value=1.4;f.frequency.setValueAtTime(500,t);f.frequency.exponentialRampToValueAtTime(3200,t+1);
+    g.gain.setValueAtTime(.0008,t);g.gain.exponentialRampToValueAtTime(.12,t+.25);g.gain.exponentialRampToValueAtTime(.0008,t+1.1);s.connect(f).connect(g).connect(a.destination);s.start(t);s.stop(t+1.12);
+    [784,880,988,1175,1319,1568,1760,2093].forEach((fq,i)=>this.tone(fq,.25,'triangle',.03,w+i*.125))},
+  // 列が敵の城に届いた時のどん
+  thud(w=0){this.tone(110,.35,'sawtooth',.05,w,55);this.noise(.25,.1,600,w)},
+  heal(w=0){[1046,1318,1568].forEach((f,i)=>this.tone(f,.4,'sine',.03,w+i*.07))},
+  // 出力までの遅れ。分かる端末だけ、その分だけ早めに鳴らす
+  lag(){const a=this.ac;return a?Math.min(.15,a.outputLatency||a.baseLatency||0):0},
   fuse(){[392,523,659,784,1046].forEach((f,i)=>this.tone(f,.22,'square',.03,i*.06));this.noise(.3,.08,2000)},
   coin(){this.tone(880,.06,'square',.02);this.tone(1320,.09,'square',.02,.06)},
 };
@@ -256,7 +269,7 @@ function clampCam(){if(B)cam=Math.max(0,Math.min(B.L-vw,cam))}
 new ResizeObserver(fit).observe(field);
 function startBattle(si,lap){
   B=new Battle(si,lap,battleCfg(save));bg=A.makeBackground(STAGES[si].ch,B.L,VH,WATER_Y,GROUND,CHAPTERS);
-  scene=null;adT=-1;$('ad').hidden=true;Snd.setBgm('normal');vfx=[];slotCache=[];paused=false;userPan=0;endQueued=false;banner=null;speed=1;$('btn-speed').textContent='×1';$('over').hidden=true;
+  scene=null;adT=-1;godSfx=[];$('ad').hidden=true;Snd.setBgm('normal');vfx=[];slotCache=[];paused=false;userPan=0;endQueued=false;banner=null;speed=1;$('btn-speed').textContent='×1';$('over').hidden=true;
   $('hud-stage').textContent=`${STAGES[si].km}km ${STAGES[si].n}`;
   buildSlots();show('battle');fit();cam=B.L-vw;clampCam();
   const tip=$('tip');
@@ -290,7 +303,7 @@ let adT=-1;
 function askGod(){
   if(!B||paused||!B.canGod())return;
   paused=true;
-  overlay(`<h2>守護神をよぶ?</h2><p>鮭の守護神さまは、ただいまCMの真っ最中。5秒の広告が終わったら、かけつけてくれます。</p><p class="note">何が起きるかは、来てからのお楽しみ。1分に1回よべます。</p><div class="row"><button class="pop" id="o-ad">広告を見てよぶ</button><button class="pop ghost" id="o-no">やめておく</button></div>`,
+  overlay(`<h2>守護神をよぶ?</h2><p>鮭の守護神さまは、ただいまCMの真っ最中。5秒の広告が終わったら、かけつけてくれます。</p><p class="note">何が起きるかは、来てからのお楽しみ。2分に1回よべます。</p><div class="row"><button class="pop" id="o-ad">広告を見てよぶ</button><button class="pop ghost" id="o-no">やめておく</button></div>`,
     {'o-ad':()=>{$('over').hidden=true;adT=0;$('ad').hidden=false;Snd.setBgm('ad')},'o-no':()=>{$('over').hidden=true;paused=false}});
 }
 function tickAd(dt){
@@ -324,7 +337,7 @@ function togglePause(){
   if(paused)overlay(`<h2>一時停止</h2><p>${STAGES[B.si].n}</p><div class="row"><button class="pop" id="o-resume">続ける</button><button class="pop ghost" id="o-quit">川をおりる</button></div>`,{'o-resume':togglePause,'o-quit':quit});
   else $('over').hidden=true;
 }
-function quit(){B=null;scene=null;paused=false;Snd.setBgm('normal');$('over').hidden=true;show('menu')}
+function quit(){B=null;scene=null;godSfx=[];paused=false;Snd.setBgm('normal');$('over').hidden=true;show('menu')}
 function overlay(html,acts,extra,wide){const o=$('over'),c=$('over-card');c.className='card'+(wide?' scene':'');c.innerHTML=html;if(extra)c.insertBefore(extra,c.children[1]||null);for(const[k,f]of Object.entries(acts))$(k).onclick=f;o.hidden=false}
 // ボスに負けた時の見出しと文章。絵は art.js の LOSE_SCENES
 const LOSE={
@@ -416,8 +429,8 @@ function drainFx(){
     else if(f.k==='guard')vfx.push({k:'word',x:f.x,y:GROUND-70,s:'耐えた',col:'#ffe63b',t:0,life:.8});
     else if(f.k==='heal')vfx.push({k:'word',x:f.x,y:GROUND-58,s:'+',col:'#8dff9c',t:0,life:.5});
     else if(f.k==='atk')vfx.push({...f,k:'atk',t:0,life:f.fx==='shout'?.7:f.fx==='shoot'?.5:.34});
-    else if(f.k==='god'){vfx.push({k:'god',kind:f.kind,t:0,life:GOD_LIFE[f.kind]});Snd.god()}
-    else if(f.k==='godhit'){flash=Math.max(flash,.25);shakeT=.5;Snd.godhit()}
+    else if(f.k==='god'){vfx.push({k:'god',kind:f.kind,t:0,life:GOD_LIFE[f.kind]});Snd.god();queueGodSfx(f.kind,f.t)}
+    else if(f.k==='godhit'){flash=Math.max(flash,.25);shakeT=.5}
     else if(f.k==='riser')vfx.push({k:'riser',x:f.x,t:0,life:.9});
     else if(f.k==='sweep')vfx.push({k:'sweep',t:0,life:2,from:B.pbase.x,to:B.ebase.x});
     else if(f.k==='fuse'){vfx.push({k:'fuse',x:f.x,t:0,life:.8});banner={s:`合体! ${FUSE[f.id].n}`,t:0,col:'#2a8ea3'};Snd.fuse();if(!save.fuse.includes(f.id)){save.fuse.push(f.id);persist()}}
@@ -426,6 +439,19 @@ function drainFx(){
     else if(f.k==='wave'){flash=.25;shakeT=.4}
   }
   B.fx.length=0;
+}
+// 守護神の音は当たる時刻が先に決まっているので、音の時計で少し前から予約する。
+// 絵の出るフレームを待ってから鳴らすと、スマホでは処理の重さと出力の遅れの分だけ音が後ろにずれるため
+let godSfx=[];
+function queueGodSfx(kind,t0){
+  const hits=GOD_HITS[kind],add=(t,fn)=>godSfx.push({at:t0+t,fn});
+  if(kind<2)for(const t of hits)add(t,w=>Snd.godhit(w));
+  else{add(hits[0],w=>Snd.heal(w));for(const t of hits){add(t,w=>Snd.sweep(w));add(t+GOD_SWEEP,w=>Snd.thud(w))}}
+}
+function tickGodSfx(){
+  if(!godSfx.length||paused)return;
+  const lag=Snd.lag();
+  godSfx=godSfx.filter(q=>{const w=(q.at-B.time)/speed-lag;if(w>.25)return true;q.fn(Math.max(0,w));return false});
 }
 function drawAtkFx(c,f){
   const a=f.t/f.life,dx=f.tx-f.x,y=GROUND-24-(f.lane||0)*.2-(f.fly||0),x=f.x+dx*a;
@@ -614,7 +640,7 @@ function tickBattle(dt){
     if(userPan>0)userPan-=dt;
     else{const front=B.us.length?Math.min(...B.us.map(e=>e.x)):B.L,target=front-vw*.32;cam+=(target-cam)*Math.min(1,dt*1.6);clampCam()}
   }
-  drainFx();
+  drainFx();tickGodSfx();
   // 演出もゲームの速さに合わせる。×2で当たる時刻と絵がずれないように
   for(const f of vfx)f.t+=paused?0:dt*speed;
   vfx=vfx.filter(f=>f.t<f.life);
