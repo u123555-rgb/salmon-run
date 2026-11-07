@@ -8,7 +8,7 @@ const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const KEY='salmon-run-v1',SPIN=200,MAXLV=30;
 // ユーコン川の1回目。ylapはユーコン川タブで選んでいる周回
 const YL=LAPS.findIndex(l=>l.yukon);
-const fresh=()=>({ikura:300,own:{shake:1,ikura:1,aramaki:1},team:['shake','ikura','aramaki'],prog:LAPS.map(()=>0),meta:{wall:0,flood:0,stom:0},lap:0,ylap:YL,tip:false,snd:true,fuse:[]});
+const fresh=()=>({ikura:300,own:{shake:1,ikura:1,aramaki:1},team:['shake','ikura','aramaki'],prog:LAPS.map(()=>0),meta:{wall:0,flood:0,stom:0},lap:0,ylap:YL,opSeen:false,tip:false,snd:true,fuse:[]});
 // 更新で項目が増減しても、古いセーブを今の形に直して読む
 function migrate(s){
   const f=fresh(),own={};
@@ -17,7 +17,7 @@ function migrate(s){
   const team=(Array.isArray(s.team)?s.team:[]).filter(k=>own[k]);
   return{...f,...s,own,team:team.length?team:Object.keys(own).slice(0,3),
     prog:f.prog.map((_,i)=>Math.min(stagesOf(i).length,Math.max(0,((s.prog||[])[i])|0))),
-    meta:{...f.meta,...s.meta},fuse:(Array.isArray(s.fuse)?s.fuse:[]).filter(k=>FUSE[k]),lap:(l=>LAPS[l].yukon?0:l)(Math.min(LAPS.length-1,Math.max(0,s.lap|0))),ylap:LAPS[s.ylap]&&LAPS[s.ylap].yukon?s.ylap:YL};
+    meta:{...f.meta,...s.meta},fuse:(Array.isArray(s.fuse)?s.fuse:[]).filter(k=>FUSE[k]),lap:(l=>LAPS[l].yukon?0:l)(Math.min(LAPS.length-1,Math.max(0,s.lap|0))),ylap:LAPS[s.ylap]&&LAPS[s.ylap].yukon?s.ylap:YL,opSeen:s.opSeen??true};
 }
 let save=fresh();
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.own)save=migrate(s)}catch(e){}
@@ -86,6 +86,7 @@ const Snd={ac:null,timer:null,step:0,mode:'normal',
     g.gain.setValueAtTime(.0008,t);g.gain.exponentialRampToValueAtTime(.12,t+.25);g.gain.exponentialRampToValueAtTime(.0008,t+1.1);s.connect(f).connect(g).connect(a.destination);s.start(t);s.stop(t+1.12);
     [784,880,988,1175,1319,1568,1760,2093].forEach((fq,i)=>this.tone(fq,.25,'triangle',.03,w+i*.125))},
   // 列が敵の城に届いた時のどん
+  crash(){this.noise(1.3,.16,520);this.tone(82,.8,'sawtooth',.06,0,34);this.noise(.5,.09,2600,.12);this.noise(.6,.07,1200,.35)},
   thud(w=0){this.tone(110,.35,'sawtooth',.05,w,55);this.noise(.25,.1,600,w)},
   heal(w=0){[1046,1318,1568].forEach((f,i)=>this.tone(f,.4,'sine',.03,w+i*.07))},
   // 出力までの遅れ。分かる端末だけ、その分だけ早めに鳴らす
@@ -151,7 +152,7 @@ function renderRiver(p,lap){
     b.onclick=()=>{if(yk){save.ylap=i;persist();renderYukon()}else{save.lap=i;persist();renderMap()}};laps.appendChild(b)});
   const edOk=yk?cleared(YL):cleared(0);
   // ユーコン川タブでは、迷子になったいきさつ(導入)をいつでも見直せる
-  if(yk){const b=document.createElement('button');b.textContent='はじまりを見る';b.onclick=()=>{Snd.wake();playEnding('yintro',()=>show('menu'))};laps.appendChild(b)}
+  {const b=document.createElement('button');b.textContent='はじまりを見る';b.onclick=()=>{Snd.wake();playEnding(yk?'yintro':'open',()=>show('menu'))};laps.appendChild(b)}
   if(edOk){const b=document.createElement('button');b.textContent='エンディングを見る';b.onclick=()=>{Snd.wake();playEnding(yk?YL:lap,()=>show('menu'))};laps.appendChild(b)}
   if(laps.children.length>1||edOk)p.appendChild(laps);
   const riv=document.createElement('div');riv.className='river';let chShown=-1,nextEl=null;
@@ -712,7 +713,8 @@ function drawField(dt){
   c.translate(sx/Sc-cam,0);
   c.drawImage(bg.near,0,0,B.L,VH);
   const ch=B.s.ch;
-  c.save();c.translate(B.ebase.x+(B.ebase.shake>0?Math.sin(clock*70)*3:0),0);A.drawEnemyBase(c,ch,clock,GROUND+6);c.restore();
+  if(B.ebase.broken){const cr=vfx.find(v=>v.k==='crumble');if(cr)drawCrumble(c,cr)}
+  else{c.save();c.translate(B.ebase.x+(B.ebase.shake>0?Math.sin(clock*70)*3:0),0);A.drawEnemyBase(c,ch,clock,GROUND+6);c.restore()}
   c.save();c.translate(B.pbase.x+(B.pbase.shake>0?Math.sin(clock*70)*3:0),0);A.drawSchool(c,clock,GROUND+6,B.pbase.hp/B.pbase.max);c.restore();
   const all=[...B.us,...B.es].sort((a,b)=>a.lane-b.lane);
   for(const f of vfx)if(f.k==='die')drawDead(c,f);
@@ -742,7 +744,7 @@ function drawField(dt){
     for(let i=0;i<13;i++){const q=i/12,yy=GROUND+4-q*172,xx=x+34-Math.sin(q*3.1)*40+Math.sin(clock*26+i*1.7)*7;A.E(c,xx,yy,13+(i%3)*5,10+(i%2)*5,'#f7fdfc',i,0)}
     word(c,'鉄砲水',x+150,GROUND-96,'#ffe63b',26);
   }
-  drawBaseHp(c,B.ebase,`${fmt(B.ebase.hp)} / ${fmt(B.ebase.max)}`);
+  if(!B.ebase.broken)drawBaseHp(c,B.ebase,`${fmt(B.ebase.hp)} / ${fmt(B.ebase.max)}`);
   drawBaseHp(c,B.pbase,`${fmt(B.pbase.hp)} / ${fmt(B.pbase.max)}`);
   c.restore();
   for(const f of vfx)if(f.k==='god')drawGod(c,f,r,h);
@@ -789,9 +791,52 @@ function tickBattle(dt){
   drawField(dt);if(clashT>=0)tickClash(dt);syncHud();
   if(adT<0)Snd.setBgm(!B.over&&B.es.some(e=>e.def.boss)?'boss':'normal');
   if(scene)scene();
-  if(B.over&&!endQueued){endQueued=true;setTimeout(finish,900)}
+  // 遡上成功:拠点がくずれる様子を見せてから結果を出す
+  if(B.over==='win'){if(!B.ebase.broken){B.ebase.broken=1;startCollapse()}
+    cam+=(B.ebase.x-vw*.42-cam)*Math.min(1,dt*5);clampCam()}
+  if(B.over&&!endQueued){endQueued=true;setTimeout(finish,B.over==='win'?900+(1500+B.crWait*1000)/speed:900)}
 }
 let acc=0,scene=null;
+// 敵の拠点を絵ごと小さな四角に切り分けて、がれきにする。どのステージの拠点でも同じしくみで壊れる
+function startCollapse(){
+  const S=2,W=360,H=300,ox=180,oy=272,cols=7,rows=6,cw=W/cols,chh=H/rows;
+  const cv=document.createElement('canvas');cv.width=W*S;cv.height=H*S;const x=cv.getContext('2d');
+  x.scale(S,S);x.translate(ox,oy);A.drawEnemyBase(x,B.s.ch,clock,0);
+  const d=x.getImageData(0,0,cv.width,cv.height).data,parts=[];
+  for(let i=0;i<cols;i++)for(let j=0;j<rows;j++){
+    let on=0;for(let yy=0;yy<chh*S&&on<6;yy+=3)for(let xx=0;xx<cw*S;xx+=3){const k=(((j*chh*S+yy)|0)*cv.width+((i*cw*S+xx)|0))*4+3;if(d[k]>60&&++on>=6)break}
+    if(on<6)continue;
+    const cx=i*cw+cw/2-ox,cy=j*chh+chh/2-oy;
+    parts.push({sx:i*cw,sy:j*chh,cx,cy,vx:cx*2.4-50+(Math.random()-.5)*140,vy:-220-Math.random()*300+cy*.8,vr:(Math.random()-.5)*9})}
+  const dust=[];for(let i=0;i<10;i++)dust.push({x:(Math.random()-.5)*170,y:-Math.random()*50,r:18+Math.random()*16,vx:(Math.random()-.5)*90,d:Math.random()*.25});
+  // カメラが拠点に着くまで待ってから崩す(遠いステージでは少し待つ)
+  const far=Math.abs(cam-Math.max(0,Math.min(B.L-vw,B.ebase.x-vw*.42)));B.crWait=far>vw*.3?.6:far>40?.25:0;
+  vfx.push({k:'crumble',t:-B.crWait,life:2.6,img:cv,S,cw,chh,parts,dust,x:B.ebase.x,g:GROUND+6});
+}
+function drawCrumble(c,f){
+  const t=f.t,go=Math.max(0,t-.3),a=Math.max(0,Math.min(1,(f.life-t)/.6));
+  c.save();c.translate(f.x,f.g);
+  if(t<0){c.drawImage(f.img,-180,-272,360,300);c.restore();return}
+  if(!f.snd){f.snd=1;shakeT=REDUCED?0:.8;flash=Math.max(flash,.35);Snd.crash()}
+  // くずれる前に、ひびが入ってぶるぶる震える
+  if(t<.3){const j=REDUCED?0:(Math.random()-.5)*6;c.save();c.translate(j,0);c.drawImage(f.img,-180,-272,360,300);
+    c.strokeStyle='#17242c';c.lineWidth=2.4;c.lineCap='round';const k=t/.3;
+    for(const[x0,y0,x1,y1]of[[-10,-120,-30,-60],[-30,-60,-12,-10],[20,-100,40,-40],[-30,-60,-62,-48],[40,-40,64,-20]]){c.beginPath();c.moveTo(x0,y0);c.lineTo(x0+(x1-x0)*k,y0+(y1-y0)*k);c.stroke()}
+    c.restore()}
+  else{
+    // がれき
+    c.globalAlpha=a;
+    for(const p of f.parts){const x=p.cx+p.vx*go,y=p.cy+p.vy*go+700*go*go;
+      c.save();c.translate(x,y);c.rotate(p.vr*go);c.drawImage(f.img,p.sx*f.S,p.sy*f.S,f.cw*f.S,f.chh*f.S,-f.cw/2,-f.chh/2,f.cw,f.chh);c.restore()}
+    // 土けむり
+    for(const u of f.dust){const k=Math.max(0,go-u.d);if(k<=0)continue;const r=u.r*(1+k*2.2);c.globalAlpha=Math.max(0,.75-k*.55)*a;
+      c.fillStyle='#e9e2d0';c.beginPath();c.arc(u.x+u.vx*k,u.y-k*30,r,0,6.3);c.fill()}
+  }
+  c.restore();c.globalAlpha=1;
+  // 道がひらいた合図
+  if(t>.45&&t<2.2){c.save();c.globalAlpha=Math.min(1,(t-.45)/.2,(2.2-t)/.3);c.font="34px 'Dela Gothic One',sans-serif";c.textAlign='center';c.lineJoin='round';
+    const y=f.g-165-Math.min(1,(t-.45)/.25)*14;const tx=Math.max(f.x,cam+110);c.lineWidth=7;c.strokeStyle='#17242c';c.strokeText('ドカーン!',tx,y);c.fillStyle='#ffe63b';c.fillText('ドカーン!',tx,y);c.restore()}
+}
 
 /* タイトルの行列 */
 const par=$('parade'),pctx=par.getContext('2d');
@@ -821,7 +866,8 @@ function frame(now){
   if(view==='battle'){tickBattle(dt);if(adT>=0)tickAd(dt)}else if(view==='ending')tickEnding(dt);else if(view==='title')drawParade();
 }
 
-$('btn-start').onclick=()=>{Snd.wake();show('menu')};
+// 初めて遊ぶ人には、最初にオープニングを流す
+$('btn-start').onclick=()=>{Snd.wake();if(!save.opSeen){save.opSeen=true;persist();playEnding('open',()=>show('menu'))}else show('menu')};
 for(const b of document.querySelectorAll('.tabs button'))b.onclick=()=>setTab(b.dataset.tab);
 const sndBtn=$('btn-snd');const sndLabel=()=>{sndBtn.textContent=save.snd?'音':'消';sndBtn.setAttribute('aria-pressed',save.snd)};sndLabel();
 sndBtn.onclick=()=>{save.snd=!save.snd;persist();sndLabel();if(save.snd)Snd.wake();else Snd.stop()};

@@ -1077,12 +1077,159 @@ function edYukon(c,t){
   }
 }
 const ED_T2=14,ED_T3=26,ED_T4=ED_T3+ED_RIVER,ENDING_LEN=ED_T4+13,ED_T5=ED_T4+11,VOW_LEN=18;
-const endingLen=lap=>lap==='yintro'?YI_LEN:lap==='yukon'?YE_LEN:lap===2?ED_T5+VOW_LEN:ENDING_LEN;
+
+// オープニング。春に生まれる→海へ→4年後→待ちかまえる者たち→乗り越えて行くぞ→タイトル
+const OP_T=[6.5,13,19.5,28.5,35.5],OP_LEN=41;
+const OP_EGGS=[[-60,4],[-34,-6],[-10,6],[14,-4],[38,6],[62,-6],[-22,-16],[26,-16]];
+const OP_SCHOOL=[[0,0],[-70,-26],[-74,30],[-140,-6],[60,-34],[66,28],[-150,44],[-200,-30]];
+function opRiverBed(c,t,top,bot){
+  const W=ED.W;let g=c.createLinearGradient(0,112,0,300);g.addColorStop(0,top);g.addColorStop(1,bot);c.fillStyle=g;c.fillRect(0,112,W,190);
+  c.fillStyle='rgba(255,255,255,.08)';for(let i=0;i<4;i++){const x=W*(.1+i*.25)+Math.sin(t*.6+i)*16;c.beginPath();c.moveTo(x,112);c.lineTo(x+34,112);c.lineTo(x+90,300);c.lineTo(x+40,300);c.closePath();c.fill()}
+  c.fillStyle='#6b5a4a';c.fillRect(0,298,W,62);line(c,[[0,298],[W,298]],2);
+  const pc=['#9c8d7a','#857766','#b3a692','#6f6355'];
+  for(let i=0;i<W/14;i++){const r=4+hz(i+.7)*6;E(c,i*14+hz(i)*8,312+hz(i+.3)*44,r*1.5,r,pc[hz(i+.9)*4|0],0,1.2)}
+}
+// 1 ある春、川で生まれる(秋に産まれた卵が冬にかえり、春に石の中から出てくる)
+function opBorn(c,t){
+  const W=ED.W,cx=W/2;
+  let g=c.createLinearGradient(0,0,0,112);g.addColorStop(0,'#bfe6f0');g.addColorStop(1,'#eef6d8');c.fillStyle=g;c.fillRect(0,0,W,112);
+  c.fillStyle='#8fb39a';c.beginPath();c.moveTo(0,112);for(let x=0;x<=W+30;x+=30)c.lineTo(x,72-Math.sin(x*.013)*20-Math.abs(Math.sin(x*.041))*12);c.lineTo(W+30,112);c.closePath();c.fill();
+  c.fillStyle='#7fb36a';c.fillRect(0,98,W,16);line(c,[[0,98],[W,98]],2);
+  for(let x=24,i=0;x<W;x+=46,i++)E(c,x,100-(i%2)*3,4,3,['#f6b6c8','#fff27a','#ffffff'][i%3],0,1.2);
+  const cols=['#f6b6c8','#ffd1dc','#f9a3bd'];
+  for(let x=60,k=0;x<W;x+=160,k++){line(c,[[x,104],[x,62]],5,'#4c3425');for(let i=0;i<5;i++)E(c,x+Math.sin(i*2.3+k)*18,50-Math.cos(i*1.9+k)*12,14+(i%3)*3,13,cols[(i+k)%3],0,1.8)}
+  for(let i=0;i<7;i++){const y=(t*22+i*61)%100,x=(i*113)%W+Math.sin(t*1.3+i)*14;c.save();c.translate(x,y);c.rotate(t*2+i);E(c,0,0,4,2.6,cols[i%3],0,1);c.restore()}
+  opRiverBed(c,t,'#5cc3c9','#2a8ea3');
+  OP_EGGS.forEach(([dx,dy],i)=>{
+    const ex=cx+dx*1.6,ey=280+dy,h=3.1+i*.17;
+    if(t<h){eegg(c,ex,ey,13,esm((t-1)/1.2),t>2.4?Math.min(1,t-2.4):0,t);return}
+    const a=(t-h)/.6;
+    if(a<1){c.save();c.globalAlpha=1-a;for(const sd of[-1,1]){c.save();c.translate(ex+sd*a*14,ey+a*6);c.rotate(sd*a*.8);c.beginPath();c.arc(0,0,13,sd<0?1.5708:-1.5708,sd<0?4.7124:1.5708);c.closePath();P(c,'#ffc49a',1.6);c.restore()}c.restore()}
+    const rise=esm((t-h-.2)/1.6),tx=cx-110+(i%4)*70,ty=190+(i>>2)*34;
+    efry(c,ex+(tx-ex)*rise+Math.sin(t*2+i)*5*rise,ey+(ty-ey)*rise-(1-rise)*3,t*1.7+i,1.1,1-rise*.8);
+    if(i%3===0)eword(c,'ぴちっ',ex,ey-26-a*10,1-Math.min(1,a/1.2),13);
+  });
+  ecap(c,'ある春、川で小さな命が生まれた。',336,efade(t,.5,6.2));
+}
+// 2 川を下って海へ。進むほど景色が海になり、子どもたちは大きくなる
+function opDown(c,v){
+  const W=ED.W,k=esm((v-.6)/5);
+  let g=c.createLinearGradient(0,0,0,130);g.addColorStop(0,hexMix('#bfe6f0','#cfe3ee',k));g.addColorStop(1,hexMix('#eef6d8','#f3efe2',k));c.fillStyle=g;c.fillRect(0,0,W,130);
+  // 川岸の山は遠ざかって消える
+  c.globalAlpha=1-k;c.fillStyle='#6f9a62';c.beginPath();c.moveTo(0,130);for(let x=0;x<=W+30;x+=30)c.lineTo(x,96-Math.sin((x+v*60)*.012)*18-Math.abs(Math.sin((x+v*60)*.037))*10);c.lineTo(W+30,130);c.closePath();c.fill();c.globalAlpha=1;
+  g=c.createLinearGradient(0,130,0,360);g.addColorStop(0,hexMix('#49b6c0','#3b7d93',k));g.addColorStop(1,hexMix('#1e7788','#123848',k));c.fillStyle=g;c.fillRect(0,128,W,232);
+  c.beginPath();c.moveTo(0,130);for(let x=0;x<=W+10;x+=10)c.lineTo(x,130+Math.sin(x*.03+v*2)*(2+k*4));c.lineWidth=2.4;c.strokeStyle=INK;c.stroke();
+  // 流れのすじ(左へ流れて、前へ進んで見える)
+  c.strokeStyle='rgba(255,255,255,.35)';c.lineWidth=2;for(let i=0;i<12;i++){const x=W-((v*170+i*97)%(W+80)),y=150+(i*53)%190;c.beginPath();c.moveTo(x,y);c.lineTo(x+26,y);c.stroke()}
+  OP_SCHOOL.forEach(([dx,dy],i)=>{
+    const x=W*.52+dx*(.8+k*.5)+Math.sin(v*1.3+i)*6,y=236+dy*(.9+k*.4)+Math.sin(v*2+i)*4,a=esm((k-.45)/.2);
+    if(a<1){c.save();c.globalAlpha=1-a;efry(c,x,y,v*1.7+i,1.1+k*1.6,0);c.restore()}
+    if(a>0){c.save();c.globalAlpha=a;eact(c,'shake',x,y+20,.5+k*.35,still(v+i),true);c.restore()}
+  });
+  ecap(c,'川を下り、広い海へ。',336,efade(v,.5,6.2));
+}
+// 3 4年後の海。先頭の鮭が何かに気づき、みんなで生まれた川の方へふり返る
+function opSea(c,v){
+  const W=ED.W;seaBack(c,'#cfe3ee','#f3efe2',120,v,5,'#2f6f86');
+  c.fillStyle='rgba(255,255,255,.18)';for(let i=0;i<5;i++){const x=W*(.05+i*.22)+Math.sin(v*.5+i)*12;c.beginPath();c.moveTo(x,128);c.lineTo(x+30,128);c.lineTo(x+80,360);c.lineTo(x+36,360);c.closePath();c.fill()}
+  OP_SCHOOL.forEach(([dx,dy],i)=>{
+    const turn=esm((v-3.9-(i===0?0:.25+i*.08))/.35),x=W*.52+dx*1.25+Math.sin(v*1.1+i)*5-(1-turn)*v*3,y=250+dy*1.3+Math.sin(v*1.8+i)*4;
+    c.save();c.translate(x,y+26);c.scale((turn*2-1)*.85,.85);drawActor(c,'shake',still(v*(1-turn*.6)+i));c.restore();
+  });
+  const lx=W*.52,ly=250;
+  eword(c,'!',lx-6,ly-58-Math.abs(Math.sin(v*9))*4,efade(v,3.3,4.5,.15),30,'#ffe63b');
+  ecap(c,'4年後。',60,efade(v,.4,3.2),30);
+  ebub(c,'……帰らなきゃ。',lx-30,ly-104,lx-14,ly-46,efade(v,4.4,6.3,.25),16);
+}
+// 4 川で待ちかまえる者たち。4つのコマが順に出る
+function opPanel(c,i,v){
+  const W=ED.W,pw=(W-36)/2,ph=128,px=12+(i%2)*(pw+12),py=14+(i>>1)*(ph+12),a=esm((v-i*1.9)/.35);
+  if(a<=0)return;
+  c.save();c.translate(px+(1-a)*(i%2?40:-40),py);c.globalAlpha=a;
+  rr(c,0,0,pw,ph,4,'#fffdf4',3);c.save();c.beginPath();c.rect(3,3,pw-6,ph-6);c.clip();
+  const lt=v-i*1.9,cxp=pw/2;
+  if(i===0){ // トドとカモメの予約席
+    let g=c.createLinearGradient(0,0,0,ph);g.addColorStop(0,'#bfe4ec');g.addColorStop(1,'#e8f3df');c.fillStyle=g;c.fillRect(0,0,pw,ph);
+    c.fillStyle='#1f7f95';c.fillRect(0,96,pw,40);
+    c.beginPath();c.moveTo(20,ph);c.lineTo(40,96);c.lineTo(200,92);c.lineTo(230,ph);c.closePath();P(c,'#7c7f83',2);
+    actorAt(c,'todo',150,104,-.5,still(lt),.5);
+    // ナイフとフォークを立てて持つ
+    line(c,[[96,104],[96,58]],3,'#9aa7ae');for(const dx of[-4,0,4])line(c,[[96+dx,58],[96+dx,48]],1.6,'#9aa7ae');
+    line(c,[[204,104],[204,56]],3,'#9aa7ae');poly(c,[[201,56],[204,40],[208,56]],'#dfe7ec',1.2);
+    actorAt(c,'kamome',236,94+Math.sin(lt*6)*2,-.85,still(lt),.85);actorAt(c,'kamome',266,96+Math.sin(lt*6+1)*2,-.85,still(lt+1),.85);
+    rr(c,12,10,96,24,3,'#e3170a',2);c.fillStyle='#fff';c.font="13px 'Dela Gothic One',sans-serif";c.textAlign='center';c.textBaseline='middle';c.fillText('鮭 予約席',60,23);
+  }else if(i===1){ // 釣り人が竿をふる
+    let g=c.createLinearGradient(0,0,0,ph);g.addColorStop(0,'#a9d3ee');g.addColorStop(1,'#e0eef2');c.fillStyle=g;c.fillRect(0,0,pw,ph);
+    c.fillStyle='#6f9a62';c.fillRect(0,100,pw,30);c.fillStyle='#2a8ea3';c.fillRect(0,84,pw,18);
+    const sw=Math.sin(lt*7);actorAt(c,'tsuribito',cxp-30,122,-1.05,{...still(lt),atk:.5+sw*.5},1.05);
+    eword(c,'ブンッ',cxp+70,44+sw*4,Math.max(0,sw),18,'#ffe63b');
+    ebub(c,'今年こそ大物!',cxp-60,8,cxp-34,40,1,13);
+  }else if(i===2){ // 板前が包丁をとぐ
+    c.fillStyle='#f2ece0';c.fillRect(0,0,pw,ph);c.fillStyle='#d9331f';c.fillRect(0,0,pw,10);
+    c.fillStyle='#8a5a34';c.fillRect(0,100,pw,30);line(c,[[0,100],[pw,100]],2.2);
+    rr(c,cxp-74,90,70,12,2,'#7d8a8f',2);
+    const sw=Math.sin(lt*10);actorAt(c,'itamae',cxp+24,124,1.05,{...still(lt),atk:.3+sw*.35});
+    c.save();c.translate(cxp-40+sw*14,86);c.rotate(-.1);poly(c,[[-18,-2],[18,-4],[22,0],[-18,2]],'#dfe7ec',1.4);rr(c,22,-3,12,6,2,'#6b4a2c',1.2);c.restore();
+    for(let k=0;k<4;k++){const q=(lt*3+k*.25)%1;c.globalAlpha=a*(1-q);dot(c,cxp-40+sw*14+(k-1.5)*8,84-q*20,1.4,'#ffe63b');c.globalAlpha=a}
+    eword(c,'シャッシャッ',cxp-40,40,1,17,'#ffe63b');
+  }else{ // ヒグマのよだれ
+    let g=c.createLinearGradient(0,0,0,ph);g.addColorStop(0,'#a9d3ee');g.addColorStop(1,'#d6ecd2');c.fillStyle=g;c.fillRect(0,0,pw,ph);
+    poly(c,[[pw-60,104],[pw-34,30],[pw-8,104]],'#2f6650',2);poly(c,[[8,104],[34,40],[60,104]],'#2f6650',2);c.fillStyle='#6f9a62';c.fillRect(0,100,pw,30);
+    actorAt(c,'higuma',cxp+10,128,.75,still(lt));
+    const q=(lt*.9)%1;line(c,[[cxp-40,70],[cxp-40,70+q*22]],2.4,'#9fe0f0');E(c,cxp-40,72+q*24,3.4,4.6,'#9fe0f0',0,1.4);
+    ebub(c,'じゅるり…',cxp-70,10,cxp-34,44,1,14);
+  }
+  c.restore();c.restore();
+}
+function opWait(c,v){
+  const W=ED.W;let g=c.createLinearGradient(0,0,0,360);g.addColorStop(0,'#1f5b63');g.addColorStop(1,'#0d3440');c.fillStyle=g;c.fillRect(0,0,W,360);
+  for(let i=0;i<4;i++)opPanel(c,i,v);
+  ecap(c,'でも、川では食いしんぼうたちが待っていた。',322,efade(v,.4,8.8),20);
+}
+// 5 敵がならぶ川を、群れが次々に跳びこえていく。前向きに、行くぞ!
+const OP_FOES=[['todo',.2,-.36,.36],['tsuribito',.38,-.95,.95],['itamae',.55,-.95,.95],['higuma',.73,-.6,.6]];
+function opRise(c,v){
+  const W=ED.W;
+  let g=c.createLinearGradient(0,0,0,200);g.addColorStop(0,'#a9d3ee');g.addColorStop(1,'#e0eef2');c.fillStyle=g;c.fillRect(0,0,W,200);
+  c.fillStyle='#7fa38a';c.beginPath();c.moveTo(0,200);for(let x=0;x<=W+30;x+=30)c.lineTo(x,150-Math.sin(x*.012)*22-Math.abs(Math.sin(x*.035))*12);c.lineTo(W+30,200);c.closePath();c.fill();
+  c.fillStyle='#6f9a62';c.fillRect(0,192,W,26);line(c,[[0,192],[W,192]],2);
+  g=c.createLinearGradient(0,216,0,360);g.addColorStop(0,'#49b6c0');g.addColorStop(1,'#1e7788');c.fillStyle=g;c.fillRect(0,216,W,144);
+  c.beginPath();c.moveTo(0,218);for(let x=0;x<=W+10;x+=10)c.lineTo(x,218+Math.sin(x*.03+v*2)*2);c.lineWidth=2.4;c.strokeStyle=INK;c.stroke();
+  // 川ぞいに待ちかまえる者たち(右から来る鮭の方を向く)
+  OP_FOES.forEach(([id,fx,sx,sy],i)=>{const x=W*fx,surprised=v>3+i*.18;
+    actorAt(c,id,x+(surprised?Math.sin(v*30)*1.5:0),226,sx,still(v+i),sy);
+    eword(c,'!',x,120-(i===0?-20:0),surprised?efade(v,3+i*.18,6.4,.15):0,26,'#ffe63b')});
+  // 群れ。はじめは右の水面で構え、先頭から順に跳びこえる
+  for(let i=0;i<7;i++){const st=2.6+i*.28,q=Math.max(0,Math.min(1,(v-st)/1.5));
+    const x0=W*(.84+(i%3)*.05),y0=268+(i%2)*22,x=x0+(-90-x0)*q,y=y0-Math.pow(Math.sin(q*Math.PI),.5)*(176+(i%3)*12);
+    c.save();c.translate(x,y+(q>0?0:Math.sin(v*3+i)*3));c.rotate(q>0&&q<1?.75-1.5*q:0);c.scale(.62,.62);c.translate(0,30);drawActor(c,i===0?'hanamagari':'shake',still(v+i));c.restore();
+    if(q>0&&q<.12){c.globalAlpha=.8;E(c,x0,258,16,4,'#e9f7f4',0,1.4);c.globalAlpha=1}}
+  ebub(c,'みんな、行くぞ!',W*.8,150,W*.85,232,efade(v,.3,2.6,.2),16);
+  ebub(c,'おー!',W*.86,312,W*.86,294,efade(v,1.5,2.8,.2),15);
+  ecap(c,'食いしんぼうたちを乗り越えて、生まれた川へ帰れるか!?',40,efade(v,.4,6.6),21);
+}
+// 6 タイトル。鮭の群れが跳ねて、題字が出る
+function opTitle(c,v){
+  const W=ED.W;seaBack(c,'#ffcf9c','#ff9d7c',230,v,4,'#2a8ea3');
+  c.fillStyle='#7d6f8c';c.beginPath();c.moveTo(0,232);for(let x=0;x<=W+30;x+=30)c.lineTo(x,196-Math.sin(x*.011)*24-Math.abs(Math.sin(x*.033))*14);c.lineTo(W+30,232);c.closePath();c.fill();
+  seaBack(c,'rgba(0,0,0,0)','rgba(0,0,0,0)',232,v,4,'#2a8ea3');
+  for(let i=0;i<7;i++){const ph=((v*.8+i*.37)%1.6)/1.6;if(ph>.85)continue;const q=ph/.85,x=W*(.12+i*.13)+q*40,y=236-Math.sin(q*Math.PI)*(90+(i%3)*30);
+    c.save();c.translate(x,y);c.rotate(-.9+q*1.8);c.scale(-.6,.6);c.translate(0,30);drawActor(c,i%3?'shake':'gin',still(v+i));c.restore();
+    if(q<.12||q>.88){c.globalAlpha=.8;E(c,W*(.12+i*.13)+(q<.5?0:40),238,14,4,'#e9f7f4',0,1.4);c.globalAlpha=1}}
+  const a=esm((v-1)/.5),sc=1+.35*(1-esm((v-1)/.45));
+  if(a>0){c.save();c.globalAlpha=a;c.translate(W/2,118);c.scale(sc,sc);c.rotate(-.035);c.font="64px 'Dela Gothic One',sans-serif";c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';
+    c.fillStyle=INK;c.fillText('サーモン大遡上',5,6);c.lineWidth=9;c.strokeStyle=INK;c.strokeText('サーモン大遡上',0,0);c.fillStyle='#ff8a5c';c.fillText('サーモン大遡上',0,0);c.restore()}
+  ecap(c,'めざせ、268km先の生まれた川!',300,efade(v,2,6.2),22);
+}
+function edOpen(c,t){
+  if(t<OP_T[0])opBorn(c,t);else if(t<OP_T[1])opDown(c,t-OP_T[0]);else if(t<OP_T[2])opSea(c,t-OP_T[1]);else if(t<OP_T[3])opWait(c,t-OP_T[2]);else if(t<OP_T[4])opRise(c,t-OP_T[3]);else opTitle(c,t-OP_T[4]);
+}
+const endingLen=lap=>lap==='open'?OP_LEN:lap==='yintro'?YI_LEN:lap==='yukon'?YE_LEN:lap===2?ED_T5+VOW_LEN:ENDING_LEN;
 function drawEnding(c,t,W,lap){
   ED.W=W;ED.lap=lap;c.save();
-  if(lap==='yintro'||lap==='yukon'){
-    const cuts=lap==='yintro'?YI_T:[YE_T,YE_LEN-4];
-    (lap==='yintro'?edYIntro:edYukon)(c,t);
+  if(lap==='yintro'||lap==='yukon'||lap==='open'){
+    const cuts=lap==='open'?OP_T:lap==='yintro'?YI_T:[YE_T,YE_LEN-4];
+    (lap==='open'?edOpen:lap==='yintro'?edYIntro:edYukon)(c,t);
     let k=1-t/.9;for(const b of cuts)k=Math.max(k,1-Math.abs(t-b)/.7);
     if(k>0){c.fillStyle=`rgba(13,30,38,${Math.min(1,k*1.25)})`;c.fillRect(0,0,W,360)}
     c.restore();return;
