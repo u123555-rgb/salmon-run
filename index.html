@@ -46,6 +46,8 @@ button:focus-visible{outline:3px solid var(--pop);outline-offset:2px}
 .title-box h1{margin:0;font-family:var(--display);font-weight:400;font-size:clamp(46px,12vw,112px);line-height:1.02;color:var(--salmon);-webkit-text-stroke:3px var(--ink);paint-order:stroke fill;text-shadow:5px 6px 0 var(--ink);transform:rotate(-2.5deg);letter-spacing:.01em;text-wrap:balance}
 .title-box p{margin:0;font-family:var(--tag);font-size:clamp(17px,3.4vw,24px);color:var(--ink);background:var(--pop);border:3px solid var(--ink);padding:.15em .7em;transform:rotate(1.2deg)}
 
+.howto-link{position:absolute;right:max(10px,env(safe-area-inset-right,0px));top:8px;z-index:2;font-family:var(--body);font-weight:900;font-size:15px;color:var(--ink);background:var(--paper);border:2px solid var(--ink);padding:.25em .9em;text-decoration:none}
+.howto-link:focus-visible{outline:3px solid var(--pop);outline-offset:2px}
 .ver{position:absolute;left:max(10px,env(safe-area-inset-left,0px));top:6px;z-index:1;font-size:11px;color:#fff;text-shadow:0 1px 2px rgba(23,36,44,.7);font-variant-numeric:tabular-nums;pointer-events:none}
 
 /* エンディング */
@@ -271,7 +273,8 @@ h2.mt{margin-top:26px}
 <div id="app">
   <section class="view" id="v-title">
     <canvas id="parade" aria-hidden="true"></canvas>
-    <small class="ver">ver.2026.11.06-03</small>
+    <a class="howto-link" href="howto/">あそびかた</a>
+    <small class="ver">ver.2026.11.07-01</small>
     <div class="title-box gut">
       <h1>サーモン<br>大遡上</h1>
       <p>生まれた川まで、あと268km。</p>
