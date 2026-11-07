@@ -5,7 +5,11 @@ const GOD_CD=120,GOD_SWEEP=1,GOD_RISE=600; // 守護神は2分に1回。天の�
 // 守護神の3回の攻撃が始まる時刻(呼んでからの秒)。並・上・特上の順。画面の音もこの表で先に予約する
 const GOD_HITS=[[1.5,2.2,2.9],[1.4,2.2,3],[1.2,2.3,3.4]];
 const TRAIT={fish:'川魚',shell:'カニ',bird:'鳥',beast:'ケモノ',human:'ヒト'};
-const LAPS=[{n:'1回目の遡上',m:1,r:1},{n:'4年後の遡上',m:2.5,r:2},{n:'8年後の遡上',m:6,r:3.5},{n:'12年後の遡上(ハード)',m:9,r:5,hard:1}];
+const LAPS=[{n:'1回目の遡上',m:1,r:1},{n:'4年後の遡上',m:2.5,r:2},{n:'8年後の遡上',m:6,r:3.5},{n:'12年後の遡上(ハード)',m:9,r:5,hard:1,need:2},
+// ユーコン川は別の川で、専用のタブから行く。8年後の遡上をクリアするとひらく。fastは絶食ルール
+{n:'ユーコン川',btn:'1回目の遡上',m:6,r:4,yukon:1,need:2,fast:1},
+// ユーコン川の4年後。ユーコン川を全部クリアするとひらく。絶食のまま、敵の数は12年後と同じく2倍
+{n:'ユーコン川 4年後(ハード)',btn:'4年後の遡上(ハード)',m:12,r:7,yukon:1,hard:1,need:4,fast:1}];
 // ハードのボスの守護神。体力が30%を切るとよび、体力が50%まで戻る。usesは1戦でよべる回数、lifeは技が続く秒数
 const BGOD={
 todo:{n:'流氷の大トド',uses:1,life:3.6},
@@ -62,12 +66,28 @@ ashi:{n:'脚サーモン',r:'SR',via:'gacha',cost:350,cd:9,hp:420,atk:140,rate:1
 toki:{n:'時鮭',r:'SR',via:'gacha',cost:500,cd:12,hp:640,atk:140,rate:1.8,wind:.5,range:105,area:60,sp:40,kb:3,w:48,stun:{p:.4,t:1.6},fx:'clock',
   txt:'季節外れに獲れる「時知らず」。ときどき敵の時間も止める。'},
 
-king:{n:'キングサーモン',r:'UR',via:'gacha',cost:900,cd:22,hp:4600,atk:460,rate:2.2,wind:.6,range:115,area:90,sp:26,kb:2,w:90,fx:'bite',
-  txt:'鮭の王。和名はマスノスケ。王冠は自前。'},
+king:{n:'マスノスケ',r:'UR',via:'gacha',cost:900,cd:22,hp:4600,atk:460,rate:2.2,wind:.6,range:115,area:90,sp:26,kb:2,w:90,fx:'bite',
+  txt:'キングサーモンの日本での呼び名がマスノスケ。日本の鮭の王。王冠は自前。'},
 keiji:{n:'鮭児',r:'UR',via:'gacha',cost:700,cd:20,hp:980,atk:560,rate:1,wind:.3,range:62,sp:92,kb:3,w:40,crit:.5,fx:'bite',
   txt:'一万匹に一匹といわれる幻の若い鮭。脂のりが異常。'},
 osuke:{n:'鮭の大助',r:'UR',via:'gacha',cost:1500,cd:40,hp:6500,atk:1300,rate:3.6,wind:1,range:300,area:300,sp:14,kb:2,w:130,kbc:.5,fx:'shout',
   txt:'東北の言い伝えの鮭の王。「鮭の大助、今のぼる」と叫ぶ。'},
+
+// ユーコン川で出会う仲間。yukon:1 はユーコン川がひらくまで回転レーンに流れてこない。yclearはユーコン川のステージ番号
+can:{n:'サーモン缶',r:'N',via:{yclear:0},yukon:1,cost:260,cd:10,hp:2400,atk:30,rate:2,wind:.5,range:34,sp:18,kb:2,w:44,onDeath:{id:'shake',n:2},fx:'bite',
+  txt:'アラスカの缶詰工場生まれ。とにかくかたい。倒れるとフタが開いて、シロザケが飛び出す。'},
+bcroll:{n:'BCロール',r:'N',via:{yclear:4},yukon:1,cost:240,cd:6,hp:380,atk:70,rate:.6,wind:.1,range:30,sp:90,kb:2,w:42,roll:1,fx:'bite',
+  txt:'バンクーバー生まれの、焼いた鮭の皮を巻いた寿司。カナダに入ったとたん転がってきた。'},
+maple:{n:'メープル鮭',r:'R',via:'gacha',yukon:1,cost:230,cd:7,hp:300,atk:50,rate:1.8,wind:.5,range:140,area:50,sp:34,kb:3,w:44,slow:{p:1,t:3.5},fx:'syrup',
+  txt:'メープルシロップをぬって焼いたカナダの鮭。シロップを投げて、敵をべたべたにする。'},
+candy:{n:'サーモンキャンディ',r:'R',via:'gacha',yukon:1,cost:90,cd:3,hp:140,atk:30,rate:.9,wind:.25,range:32,sp:60,kb:2,w:34,haste:1,fx:'bite',
+  txt:'甘く仕上げた燻製の鮭。まわりの仲間がひとかけらずつもらって、足が速くなる。'},
+steel:{n:'スチールヘッド',r:'SR',via:'gacha',yukon:1,cost:380,cd:10,hp:900,atk:150,rate:1.6,wind:.45,range:40,sp:44,kb:3,w:54,kbc:.5,revive:1,fx:'bite',
+  txt:'海に下ったニジマス。頭は鋼のようにかたい。卵を産んでも生きのびる体で、一度倒れても起き上がる。'},
+cedar:{n:'シーダープランク鮭',r:'SR',via:'gacha',yukon:1,cost:420,cd:11,hp:700,atk:120,rate:.9,wind:.1,range:34,area:60,sp:80,kb:3,w:72,roll:1,kbc:.35,fx:'plank',
+  txt:'杉の板にのせて焼かれた鮭。板ごと波に乗って、敵の列に突っこむ。'},
+yking:{n:'キングサーモン',r:'UR',via:'gacha',yukon:1,cost:1000,cd:24,hp:5600,atk:420,rate:2,wind:.6,range:110,area:80,sp:28,kb:2,w:96,fat:600,fx:'bite',
+  txt:'ユーコン川を3,000kmのぼる鮭の王。体にたくわえた脂は世界一。倒れると、その脂がオキアミになる。'},
 };
 
 // 合体。出撃の値札を2つ同時に押した時だけ、2体が1体になる
@@ -79,6 +99,8 @@ kohaku:{n:'紅白鮭合戦',of:['beni','shake'],hp:590,atk:125,rate:1.1,wind:.3,
   txt:'紅と白がそろってめでたい。場にいる間、敵を倒した時のオキアミが1.5倍になる。'},
 mabushi:{n:'鮭まぶしおにぎり',of:['flake','onigiri'],hp:430,atk:45,rate:.5,wind:.1,range:30,sp:90,kb:2,w:40,roll:1,area:70,fx:'scatter',
   txt:'鮭フレークをまとって転がる。飛び散ったフレークがまわりの敵にも当たる。'},
+kok:{n:'キング・オブ・キングス',of:['king','yking'],hp:10200,atk:880,rate:2,wind:.6,range:115,area:100,sp:27,kb:2,w:120,fat:600,kbc:.2,fx:'bite',
+  txt:'日本の王マスノスケと、ユーコンの王キングサーモン。同じ種類の王が2匹そろった。倒れると脂がオキアミになる。'},
 };
 
 const ENEMIES={
@@ -99,6 +121,16 @@ amimoto:{n:'網元',trait:'human',boss:1,hp:8500,atk:170,rate:3,wind:.9,range:13
 taisho:{n:'回転ずしの大将',trait:'human',boss:1,hp:22000,atk:520,rate:1.4,wind:.4,range:64,sp:34,kb:5,gold:2000,w:100,fx:'knife'},
 nushi:{n:'滝のヌシ',trait:'beast',boss:1,hp:42000,atk:900,rate:2.4,wind:.7,range:70,area:70,sp:26,kb:5,gold:3000,w:170},
 kibori:{n:'木彫りの大グマ',trait:'beast',boss:1,hp:62000,atk:1200,rate:3.2,wind:1,range:95,area:130,sp:14,kb:6,gold:5000,w:200},
+// ユーコン川の敵
+wolf:{n:'オオカミ',trait:'beast',hp:600,atk:80,rate:.8,wind:.25,range:30,sp:84,kb:2,gold:120,w:58},
+hakuto:{n:'ハクトウワシ',trait:'bird',hp:1100,atk:170,rate:1.8,wind:.55,range:110,area:50,sp:50,kb:2,gold:380,w:62,fly:60,fx:'swoop'},
+moose:{n:'ムース',trait:'beast',hp:4000,atk:50,rate:2.4,wind:.8,range:40,sp:16,kb:2,gold:500,w:98},
+goose:{n:'カナダガン',trait:'bird',hp:380,atk:55,rate:.55,wind:.15,range:26,sp:70,kb:1,gold:90,w:42,fly:18},
+kinhori:{n:'砂金掘り',trait:'human',hp:1300,atk:120,rate:1.6,wind:.5,range:44,sp:34,kb:2,gold:380,w:42},
+grizzly:{n:'グリズリー',trait:'beast',hp:7200,atk:460,rate:2.2,wind:.7,range:48,area:50,sp:30,kb:3,gold:1200,w:104},
+oyakata:{n:'砂金掘りの親方',trait:'human',boss:1,hp:28000,atk:560,rate:2,wind:.6,range:70,area:70,sp:24,kb:5,gold:2200,w:100},
+captain:{n:'外輪船の船長',trait:'human',boss:1,hp:40000,atk:640,rate:2.8,wind:.8,range:150,area:110,sp:18,kb:5,gold:2600,w:110,fx:'splash'},
+ogrizzly:{n:'ユーコンの大グリズリー',trait:'beast',boss:1,hp:70000,atk:1300,rate:3,wind:1,range:95,area:130,sp:16,kb:6,gold:5000,w:210},
 };
 Object.values(ENEMIES).forEach(d=>{d.fx=d.fx||'claw'});
 
@@ -108,6 +140,12 @@ const CHAPTERS=[
 {n:'町',sub:'人が多い',sky:['#a9d3ee','#e0eef2'],mtn:'#94a9b5',water:['#4a8f8c','#2c6263'],bed:'#6f6858'},
 {n:'大滝',sub:'登る。跳ぶ。また登る',sky:['#7fc2bf','#d6ecd2'],mtn:'#3f7560',water:['#2aa3a0','#10625f'],bed:'#555b4f'},
 {n:'源流',sub:'もうすぐ',sky:['#f5d9b8','#e8a68a'],mtn:'#8b5a55',water:['#49b6c0','#1e7788'],bed:'#6b5a4a'},
+// ここからユーコン川
+{n:'ベーリング海',sub:'ここはどこだ',sky:['#cfe3ee','#f3efe2'],mtn:'#8fa3ad',water:['#3b7d93','#1c4f62'],bed:'#6b6a62'},
+{n:'白夜の川',sub:'夜が来ない',sky:['#ffd9a8','#f6efe0'],mtn:'#6d7f6a',water:['#4b8c8f','#25595e'],bed:'#6d6455'},
+{n:'国境',sub:'ようこそカナダへ',sky:['#a8d4f0','#e6f2f4'],mtn:'#7a8e86',water:['#4a8d9a','#255967'],bed:'#73654f'},
+{n:'外輪船の川',sub:'金を夢見た川',sky:['#b9dcef','#eef0e2'],mtn:'#6a7c63',water:['#3f8b95','#1f5b63'],bed:'#6a5d4b'},
+{n:'ホワイトホース',sub:'もうすぐ',sky:['#ffd0a0','#f2e6d6'],mtn:'#5f6f7a',water:['#4fb3bf','#1f7685'],bed:'#655a4c'},
 ];
 const W=(e,t,ev,o={})=>({e,t,ev,...o});
 const STAGES=[
@@ -127,6 +165,22 @@ const STAGES=[
 {ch:4,km:236,n:'紅葉の瀬',len:1600,base:24000,reward:1400,rules:[W('higuma',4,20),W('washi',8,14),W('itamae',12,18),W('tsuribito',20,24),W('konguma',0,9,{b:2,hp:70})]},
 {ch:4,km:268,n:'母川',len:1700,base:36000,reward:2500,rules:[W('konguma',2,9),W('higuma',6,18),W('washi',10,14),W('kibori',0,0,{hp:85,n:1}),W('nushi',0,60,{hp:40,n:1}),W('higuma',0,14,{hp:45})]},
 ];
+// ユーコン川。gimはステージのしかけ(wheel:魚車が仲間をすくう、cold:仲間の足が遅い、paddle:外輪船の波、rapids:急流)
+const YUKON=[
+{ch:5,km:0,n:'ベーリング海の河口',len:1300,base:5000,reward:600,rules:[W('kamome',2,8),W('azarashi',10,26),W('kamome',0,12,{hp:60,b:3})]},
+{ch:5,km:150,n:'魚車の村',len:1350,base:6500,reward:700,gim:'wheel',rules:[W('goose',2,9),W('kamome',4,12),W('wolf',16,18),W('azarashi',24,30)]},
+{ch:6,km:800,n:'白夜の川',len:1400,base:8000,reward:800,rules:[W('wolf',2,7),W('hakuto',10,18),W('wolf',0,9,{hp:70,b:2}),W('grizzly',40,50)]},
+{ch:6,km:1300,n:'北極圏の線',len:1400,base:9500,reward:850,gim:'cold',rules:[W('moose',2,20),W('wolf',6,10),W('hakuto',14,18)]},
+{ch:7,km:1900,n:'国境',len:1450,base:11000,reward:950,rules:[W('goose',0,6,{b:2}),W('moose',10,24),W('kinhori',18,20),W('goose',0,10,{hp:60,b:3})]},
+{ch:7,km:2100,n:'ゴールドラッシュの町',len:1500,base:16000,reward:1400,rules:[W('kinhori',2,12),W('wolf',6,12),W('goose',10,14),W('oyakata',0,0,{hp:80,n:1}),W('kinhori',0,10,{hp:50,b:2})]},
+{ch:8,km:2400,n:'外輪船の航路',len:1550,base:15400,reward:1600,gim:'paddle',rules:[W('kinhori',2,12),W('hakuto',8,16),W('grizzly',20,34),W('captain',0,0,{hp:80,n:1})]},
+{ch:8,km:2600,n:'ファイブフィンガー急流',len:1550,base:24000,reward:1500,gim:'rapids',rules:[W('grizzly',4,22),W('wolf',2,8),W('moose',10,22),W('hakuto',16,18)]},
+{ch:9,km:2900,n:'ラバージ湖',len:1600,base:28000,reward:1700,rules:[W('hakuto',2,8),W('hakuto',0,12,{hp:70,b:3}),W('grizzly',10,22),W('goose',4,10)]},
+{ch:9,km:3000,n:'ホワイトホースの魚道',len:1700,base:28000,reward:3000,rules:[W('wolf',2,9),W('grizzly',6,18),W('hakuto',10,14),W('ogrizzly',0,0,{hp:85,n:1}),W('captain',0,60,{hp:45,n:1}),W('grizzly',0,14,{hp:45})]},
+];
+const stagesOf=lap=>LAPS[lap]&&LAPS[lap].yukon?YUKON:STAGES;
+// しかけが起きる間隔(秒)
+const GIM_EVERY={wheel:9,paddle:12,rapids:10};
 
 const STOM={max:8,income:l=>14+9*(l-1),cap:l=>500+300*(l-1),cost:l=>40+80*l};
 const lvMul=l=>1+.2*(l-1);
@@ -149,7 +203,7 @@ function mulberry(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1
 
 class Battle{
   constructor(si,lap,cfg,seed){
-    const s=STAGES[si];this.s=s;this.si=si;this.lap=lap;this.cfg=cfg;this.L=s.len;this.time=0;this.over=null;
+    const s=stagesOf(lap)[si];this.s=s;this.si=si;this.lap=lap;this.cfg=cfg;this.L=s.len;this.time=0;this.over=null;
     this.mul=LAPS[lap].m;this.rand=mulberry(seed??(Math.random()*1e9|0));
     this.pbase={isBase:1,side:1,x:this.L-74,w:96,hp:cfg.baseHp,max:cfg.baseHp,shake:0};
     const eb=Math.round(s.base*this.mul);
@@ -160,8 +214,11 @@ class Battle{
     this.rules=s.rules.map(r=>({...r,on:false,cnt:0,next:0}));
     this.kills=0;this.lastHit=null;this.god={cd:0,act:0};
     this.hard=!!LAPS[lap].hard;this.bgod=null;this.clash=null;this.seal=0;
+    this.fast=!!LAPS[lap].fast;this.gimT=GIM_EVERY[s.gim]||0;
+    // 絶食ルール:胃袋は最大まで広げた状態で満腹から始まる。たまる速さは胃袋Lv1の半分のまま
+    if(this.fast){this.stom=STOM.max;this.money=this.cap}
   }
-  get income(){return STOM.income(this.stom)*this.cfg.income}
+  get income(){return this.fast?STOM.income(1)*this.cfg.income*.5:STOM.income(this.stom)*this.cfg.income}
   get cap(){return STOM.cap(this.stom)}
   canDeploy(i){const s=this.slots[i];return s&&!this.over&&!this.clash&&s.cd<=0&&this.money>=s.def.cost&&this.us.length<40}
   deploy(i){
@@ -185,7 +242,7 @@ class Battle{
   }
   addUnit(id,lv,x){
     const d=UNITS[id]||FUSE[id],m=lvMul(lv);
-    const e=this.make(d,1,x,d.hp*m,d.atk*m);e.shield=!!d.shield;e.lv=lv;e.id=id;
+    const e=this.make(d,1,x,d.hp*m,d.atk*m);e.shield=!!d.shield;e.revive=!!d.revive;e.lv=lv;e.id=id;
     this.us.push(e);return e;
   }
   addEnemy(id){
@@ -300,6 +357,7 @@ class Battle{
     // 守護神を待っているボス(別のボスの守護神が出ていた)がいれば、空いた時によぶ
     if(!this.bgod&&!this.clash){const w=this.es.find(e=>e.alive&&e.pend);if(w){this.bossGod(w);if(this.clash)return}}
     this.pbase.shake=Math.max(0,this.pbase.shake-dt);this.ebase.shake=Math.max(0,this.ebase.shake-dt);
+    if(this.gimT&&(this.gimT-=dt)<=0){this.gimT=GIM_EVERY[this.s.gim];this.gimmick()}
     const pct=this.ebase.hp/this.ebase.max*100;
     for(const r of this.rules){
       if(r.done)continue;
@@ -327,15 +385,29 @@ class Battle{
     if(this.ebase.hp<=0){this.ebase.hp=0;this.over='win'}
     else if(this.pbase.hp<=0){this.pbase.hp=0;this.over='lose'}
   }
+  // ステージのしかけ
+  gimmick(){
+    const allies=this.us.filter(u=>u.alive&&u.state!=='air');
+    if(this.s.gim==='wheel'){
+      // 魚車が先頭の仲間をすくい上げ、群れのところまで放る
+      const u=allies.sort((a,b)=>a.x-b.x)[0];if(!u)return;
+      this.fx.push({k:'gim',s:'魚車にすくわれた!',x:u.x});u.state='air';u.air={t:0,d:1,x0:u.x,x1:this.pbase.x-44,dmg:.15};
+    }else if(this.s.gim==='paddle'){
+      this.fx.push({k:'gim',s:'外輪船の波!'});for(const u of allies){this.damage(u,u.maxhp*.06);if(u.alive)this.knock(u,1)}
+    }else if(this.s.gim==='rapids'){
+      this.fx.push({k:'gim',s:'急流!'});for(const u of allies)this.knock(u,1);for(const e of this.es)if(e.alive&&!e.def.boss)this.knock(e,1);
+    }
+  }
   act(e,dt){
     if(!e.alive)return;
     const d=e.def;e.anim+=dt;e.hurt=Math.max(0,e.hurt-dt);e.lunge=Math.max(0,e.lunge-dt*4);
     if(e.stun>0){e.stun-=dt;if(e.stun<=0)e.ice=0;return}
     // 網で放り投げられている間。落ちた所でダメージを受ける
     if(e.state==='air'){const a=e.air;a.t+=dt;const q=Math.min(1,a.t/a.d);e.x=a.x0+(a.x1-a.x0)*q;
-      if(q>=1){e.state='move';e.air=null;this.fx.push({k:'hit',x:e.x,y:GROUND-30,big:1});this.damage(e,e.maxhp*.35)}return}
+      if(q>=1){const r=a.dmg??.35;e.state='move';e.air=null;this.fx.push({k:'hit',x:e.x,y:GROUND-30,big:1});this.damage(e,e.maxhp*r)}return}
     if(e.slow>0)e.slow-=dt;
-    const sp=d.sp*(e.slow>0?.4:1);
+    if(e.haste>0)e.haste-=dt;
+    const sp=d.sp*(e.slow>0?.4:1)*(e.haste>0?1.35:1)*(e.side>0&&this.s.gim==='cold'?.8:1);
     if(e.state==='kb'){
       e.timer-=dt;e.x-=e.dir*150*dt*Math.max(.15,e.timer/KB_T);
       e.x=Math.min(this.L-30,Math.max(30,e.x));
@@ -372,6 +444,7 @@ class Battle{
     }
     const t=this.nearest(e);
     if(!t)return;
+    if(d.haste)for(const a of this.us)if(a.alive&&Math.abs(a.x-e.x)<=140){if(!(a.haste>0))this.fx.push({k:'haste',x:a.x});a.haste=4}
     this.fx.push({k:'atk',fx:d.fx,x:e.x,tx:t.x,side:e.side,lane:e.lane,fly:d.fly||0});
     const delay=Math.abs(t.x-e.x)>70?.2:0;
     const go=()=>{if(e.alive||delay)this.strike(e,t)};
@@ -409,18 +482,20 @@ class Battle{
     // ハードのボスは体力が30%を切ると守護神をよぶ。よべる回数が残っている間は倒れない
     if(t.bg>0&&t.hp<t.maxhp*.3){t.hp=Math.max(t.hp,1);if(!t.pend){t.pend=true;if(!this.bgod&&!this.clash)this.bossGod(t)}}
     if(t.hp<=0){
+      if(t.revive){t.revive=false;t.hp=t.maxhp*.5;t.kbDone=0;this.fx.push({k:'revive',x:t.x});this.knock(t);return}
       if(t.shield){t.shield=false;t.hp=1;this.fx.push({k:'guard',x:t.x});}
       else{this.kill(t);return}
     }
     const kb=t.def.kb,done=Math.min(kb-1,Math.floor((1-t.hp/t.maxhp)*kb));
     if(done>t.kbDone){t.kbDone=done;this.knock(t)}
   }
-  knock(t){if(!t.alive)return;t.state='kb';t.timer=KB_T;this.fx.push({k:'kb',x:t.x,y:GROUND-40})}
+  knock(t,quiet){if(!t.alive)return;t.state='kb';t.timer=KB_T;if(!quiet)this.fx.push({k:'kb',x:t.x,y:GROUND-40})}
   kill(t){
     t.alive=false;this.fx.push({k:'die',e:t});
     if(t.side<0){this.kills++;this.money=Math.min(this.cap,this.money+t.def.gold*(this.us.some(u=>u.alive&&u.def.goldUp)?1.5:1))}
-    else if(t.def.onDeath){const o=t.def.onDeath;for(let i=0;i<o.n;i++){const u=this.addUnit(o.id,t.lv,t.x+(i-3)*14);u.state='move'}}
+    else{if(t.def.fat){this.money=Math.min(this.cap,this.money+t.def.fat);this.fx.push({k:'fat',x:t.x,n:t.def.fat})}}
+    if(t.side>0&&t.def.onDeath){const o=t.def.onDeath;for(let i=0;i<o.n;i++){const u=this.addUnit(o.id,t.lv,t.x+(i-3)*14);u.state='move'}}
   }
 }
-return{VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,BGOD,FLOE_V,CLASH_T,CLASH_RATE,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle};
+return{YUKON,stagesOf,VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,BGOD,FLOE_V,CLASH_T,CLASH_RATE,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle};
 })();

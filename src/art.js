@@ -9,6 +9,18 @@ const line=(c,pts,lw=2.2,col=INK)=>{c.beginPath();pts.forEach((q,i)=>i?c.lineTo(
 const dot=(c,x,y,r=2,col=INK)=>{c.beginPath();c.arc(x,y,r,0,6.2832);c.fillStyle=col;c.fill()};
 const legs=(c,p,x1,x2,top,len=9)=>{const s=p.sw*3.5;line(c,[[x1,top],[x1+s,top+len]],2.6);line(c,[[x2,top],[x2-s,top+len]],2.6)};
 
+// キングサーモンの槍。(0,0)が持ち手の後ろで左へ伸びる。しっぽのひれがつば、先に目とカエデの王冠
+function kingLance(c,len,w){
+  rr(c,-2,-3.5,22,7,3,'#6b4a2c',1.8);line(c,[[4,-3],[4,3]],1.4,'#3a2a1d');line(c,[[10,-3],[10,3]],1.4,'#3a2a1d');
+  c.beginPath();c.moveTo(-8,0);c.quadraticCurveTo(-2,-14,4,-w*1.9);c.quadraticCurveTo(-2,0,4,w*1.9);c.quadraticCurveTo(-2,14,-8,0);c.closePath();P(c,'#4f6b62',1.8);
+  const cone=()=>{c.beginPath();c.moveTo(-6,-w);c.quadraticCurveTo(-len*.5,-w*.65,-len,0);c.quadraticCurveTo(-len*.5,w*.65,-6,w);c.closePath()};
+  cone();c.fillStyle='#f6efe3';c.fill();c.save();cone();c.clip();c.fillStyle='#4f6b62';c.fillRect(-len,-w-2,len,w+1.5);
+  c.strokeStyle='#ff7a59';c.lineWidth=w*.3;c.beginPath();c.moveTo(-6,1);c.lineTo(-len,0);c.stroke();
+  c.fillStyle='#1f322c';for(let i=0;i<8;i++){c.beginPath();c.arc(-16-i*(len-34)/8,-w*.45+((i*5)%3)*1.8,1.5,0,6.3);c.fill()}c.restore();
+  cone();P(c,null,1.8);
+  c.beginPath();c.arc(-len*.7,0,w*.6,-1.2,1.2);c.lineWidth=1.4;c.strokeStyle=INK;c.stroke();
+  dot(c,-len*.84,-w*.2,2);
+  c.save();c.translate(-len*.78,-w*.62);c.rotate(-.08);c.scale(1.3,1.3);poly(c,[[-6,2],[-7,-6],[-3,-2],[0,-7],[3,-2],[7,-6],[6,2]],'#ffd23b',1.2);mapleLeaf(c,0,-1,1.8,'#e3170a');c.restore()}
 function fish(c,p,o){
   const L=o.L||56,H=o.H||24,hump=o.hump||0,back=o.back||'#8fa6b4',belly=o.belly||'#f6f1e8',fin=o.fin||back;
   const wag=Math.sin(p.t*(o.ws||10))*(o.wag??.2);
@@ -40,6 +52,7 @@ function fish(c,p,o){
   if(o.after)o.after(c,L,H);
   c.restore();
 }
+function mapleLeaf(c,x,y,r,col){const pts=[[0,-1],[.18,-.55],[.45,-.7],[.38,-.3],[.9,-.42],[.72,-.05],[.95,.1],[.42,.28],[.48,.55],[.08,.4],[.06,.95],[-.06,.95],[-.08,.4],[-.48,.55],[-.42,.28],[-.95,.1],[-.72,-.05],[-.9,-.42],[-.38,-.3],[-.45,-.7],[-.18,-.55]];poly(c,pts.map(q=>[x+q[0]*r,y+q[1]*r]),col,1.2)}
 function rice(c,x,y){c.fillStyle='rgba(23,36,44,.22)';c.fillRect(x,y,3,1.5)}
 function neta(c,x,y,w,col,scorched){
   c.beginPath();c.moveTo(x-w*.52,y+7);c.quadraticCurveTo(x-w*.48,y-8,x,y-8);c.quadraticCurveTo(x+w*.48,y-8,x+w*.56,y+5);c.quadraticCurveTo(x,y+12,x-w*.52,y+7);c.closePath();P(c,col);
@@ -87,11 +100,13 @@ function bird(c,p,o){
   poly(c,[[14,-2],[30,-5],[28,5]],o.tail||o.wing);
   E(c,0,0,17,10,o.body);
   c.save();c.translate(2,-4);c.rotate(-f);poly(c,[[-9,0],[22,-3],[6,6]],o.wing);c.restore();
-  E(c,-16,-6,8.5,8,o.body);
+  if(o.neck)line(c,[[-8,-4],[-16,-14]],9,o.headc);
+  E(c,-16,-6,8.5,8,o.headc||o.body);
   poly(c,[[-23,-8],[-34,-4],[-22,-2]],o.beak);
   dot(c,-18,-8,1.9);
   line(c,[[-13,-13],[-22,-11]],2.2);
   if(o.tip)poly(c,[[16,-4],[22,-6],[20,0]],o.tip,0);
+  if(o.after)o.after(c);
   c.restore();
 }
 
@@ -240,7 +255,118 @@ kibori(c,p){c.scale(1.95,1.95);const s0={...p,sw:0};
       c.beginPath();c.moveTo(-30,0);c.quadraticCurveTo(-12,-11,18,-6);c.lineTo(32,-13);c.lineTo(30,0);c.lineTo(33,12);c.lineTo(18,5);c.quadraticCurveTo(-12,12,-30,0);c.closePath();P(c,'#a9834f');
       dot(c,-21,-1,2);c.lineWidth=1.2;c.strokeStyle='rgba(60,34,14,.7)';for(let i=0;i<6;i++){c.beginPath();c.moveTo(-10+i*5,-6);c.lineTo(-7+i*5,5);c.stroke()}c.restore()}});
   c.restore()},
+// ユーコン川の敵
+wolf(c,p){const s=p.sw*6,b=Math.abs(p.sw)*3;c.translate(0,-b);
+  c.beginPath();c.moveTo(26,-30);c.quadraticCurveTo(46,-34,50,-20);c.quadraticCurveTo(40,-24,26,-22);c.closePath();P(c,'#8d949a');
+  for(const[x,k]of[[-16,1],[-6,-1],[14,1],[22,-1]])line(c,[[x,-18],[x+s*k,0]],3.4,'#5b6168');
+  rr(c,-22,-36,50,20,10,'#9aa1a7');E(c,4,-20,18,4,'#d6dadd',0,0);
+  c.save();c.translate(-24,-36);poly(c,[[-2,-10],[2,-22],[8,-8]],'#9aa1a7',2);poly(c,[[6,-10],[12,-20],[14,-6]],'#9aa1a7',2);
+  E(c,0,0,13,11,'#9aa1a7');poly(c,[[-8,-2],[-26,4],[-8,8]],'#d6dadd',2);dot(c,-25,4,2.2);dot(c,-4,-3,2);line(c,[[-9,-7],[-1,-5]],2);c.restore()},
+hakuto(c,p){bird(c,p,{s:1.5,body:'#3b2a20',wing:'#2a1d16',tail:'#fff',beak:'#f2c021',headc:'#fbf8f0'})},
+moose(c,p){const s=p.sw*5;c.scale(1.15,1.15);
+  for(const[x,k]of[[-20,1],[-10,-1],[22,1],[30,-1]])line(c,[[x,-34],[x+s*k,0]],4.4,'#3e2a1e');
+  c.beginPath();c.moveTo(-26,-40);c.bezierCurveTo(-24,-70,10,-66,38,-52);c.bezierCurveTo(44,-40,38,-30,30,-30);c.lineTo(-22,-30);c.bezierCurveTo(-30,-32,-30,-36,-26,-40);c.closePath();P(c,'#5a3c2a');
+  poly(c,[[-24,-40],[-34,-50],[-24,-62],[-8,-60]],'#5a3c2a',2);
+  c.save();c.translate(-32,-50);c.scale(.85,.85);
+  poly(c,[[6,-6],[-2,-30],[10,-24],[14,-36],[20,-22],[28,-30],[24,-10]],'#d9c6a0',2);poly(c,[[0,-6],[-14,-24],[-18,-12],[-26,-18],[-22,-2]],'#d9c6a0',2);
+  c.beginPath();c.moveTo(4,-6);c.quadraticCurveTo(-14,-6,-20,10);c.quadraticCurveTo(-22,20,-12,20);c.quadraticCurveTo(0,16,10,8);c.closePath();P(c,'#6b4a34');
+  dot(c,-2,0,2.2);dot(c,-17,14,1.8);line(c,[[0,14],[2,26]],5,'#5a3c2a');c.restore()},
+goose(c,p){bird(c,p,{s:1.1,body:'#8b7b6b',wing:'#5e5248',tail:'#1d2428',beak:'#1d2428',headc:'#1d2428',neck:1,
+  after(c){E(c,-15,-2,4.5,2.6,'#fff',.3,1)}})},
+kinhori(c,p){person(c,p,{pants:'#3c4f7a',top:'#c0392b',
+  detail(c){c.strokeStyle='rgba(23,36,44,.45)';c.lineWidth=1.4;for(let i=0;i<3;i++){c.beginPath();c.moveTo(-13,-50+i*9);c.lineTo(13,-50+i*9);c.moveTo(-8+i*8,-56);c.lineTo(-8+i*8,-23);c.stroke()}},
+  head(c){c.beginPath();c.moveTo(-10,-62);c.quadraticCurveTo(0,-50,10,-62);c.closePath();P(c,'#8a5a34',1.6);c.beginPath();c.ellipse(0,-76,18,4,0,0,6.3);P(c,'#6b4a2c');rr(c,-9,-88,18,13,5,'#6b4a2c')},
+  hand(c){E(c,-20,10,11,4,'#8d99a2');for(const x of[-23,-19,-16])dot(c,x,9,1.5,'#ffd23b')}})},
+grizzly(c,p){c.scale(1.25,1.25);bear(c,p,{fur:'#8a6a48',snout:'#c9a57b',body(c){c.globalAlpha=.5;for(let i=0;i<7;i++)line(c,[[-18+i*7,-70+Math.abs(i-3)*2],[-15+i*7,-62+Math.abs(i-3)*2]],2,'#e9dcc0');c.globalAlpha=1}})},
+oyakata(c,p){c.scale(1.8,1.8);person(c,p,{pants:'#3c4f7a',top:'#8e2f22',
+  detail(c){rr(c,-13,-34,26,5,1,'#3a2a1d',1.4);E(c,0,-32,4,3,'#ffd23b',0,1.2)},
+  head(c){c.beginPath();c.moveTo(-12,-64);c.quadraticCurveTo(0,-38,12,-64);c.closePath();P(c,'#d9d4c8',1.6);c.beginPath();c.ellipse(0,-76,20,4.5,0,0,6.3);P(c,'#4a3324');rr(c,-10,-90,20,15,5,'#4a3324')},
+  hand(c){line(c,[[-14,10],[-30,-22]],2.8,'#6b4a2c');poly(c,[[-38,-18],[-30,-26],[-20,-30],[-28,-20]],'#8d99a2',1.6)}});
+  E(c,22,-14,10,12,'#c9a96b',0,1.6);line(c,[[18,-25],[26,-25]],2);dot(c,22,-12,2.4,'#ffd23b')},
+captain(c,p){c.scale(1.9,1.9);person(c,p,{pants:'#1f2f4f',top:'#24365c',
+  detail(c){for(const y of[-48,-40,-32])dot(c,4,y,1.4,'#ffd23b');line(c,[[-13,-52],[-6,-52]],2.4,'#ffd23b')},
+  head(c){c.beginPath();c.moveTo(-10,-62);c.quadraticCurveTo(0,-54,10,-62);c.lineWidth=3;c.strokeStyle='#f2f2ee';c.stroke();rr(c,-12,-84,24,10,3,'#fbf8f0');rr(c,-13,-77,26,4,1,INK,0);E(c,0,-80,3.5,2.6,'#ffd23b',0,1)},
+  hand(c){c.save();c.translate(-22,4);c.rotate(p.t*1.2);E(c,0,0,10,10,null);c.lineWidth=2.6;c.strokeStyle='#8a5a34';c.beginPath();c.arc(0,0,9,0,6.3);c.stroke();for(let i=0;i<6;i++){const a=i/6*6.28;line(c,[[0,0],[Math.cos(a)*13,Math.sin(a)*13]],2.2,'#8a5a34')}c.restore()}})},
+ogrizzly(c,p){c.scale(2.15,2.15);bear(c,p,{fur:'#6f5236',snout:'#b58f66',scar:1,body(c){c.globalAlpha=.55;for(let i=0;i<8;i++)line(c,[[-20+i*7,-72+Math.abs(i-3.5)*2],[-17+i*7,-63+Math.abs(i-3.5)*2]],2,'#efe3c8');c.globalAlpha=1}})},
 // 合体キャラ
+// ユーコン川の仲間
+// 背の低いツナ缶型。ふたに顔(白目なし)、側面のラベルいっぱいに大きな鮭の絵柄
+can(c,p){c.translate(0,-Math.abs(p.sw)*3);legs(c,p,-14,14,-9,9);
+  const R=27,top=-38,bot=-12,ry=8,PI=Math.PI;
+  c.beginPath();c.moveTo(-R,top);c.lineTo(-R,bot);c.ellipse(0,bot,R,ry,0,PI,0,true);c.lineTo(R,top);c.closePath();P(c,'#c3ced4');
+  // ラベル(缶の丸みに沿って上下のふちが曲がる)
+  const lab=()=>{c.beginPath();c.moveTo(-R,top+2);c.ellipse(0,top+2,R,ry,0,PI,0,true);c.lineTo(R,bot-2);c.ellipse(0,bot-2,R,ry,0,0,PI,false);c.closePath()};
+  lab();c.fillStyle='#d9331f';c.fill();
+  c.save();lab();c.clip();
+  // 右へ泳ぐ大きな鮭。背は銀、腹は鮭色。ラベルからはみ出す尾と鼻先は缶の丸みで隠れる
+  c.save();c.translate(0,-16.5);
+  poly(c,[[-19,0],[-30,-9],[-26,0],[-30,9]],'#a9bcc5',1.3);
+  poly(c,[[-4,-8],[2,-13],[6,-7.5]],'#a9bcc5',1.3);
+  const body=()=>{c.beginPath();c.moveTo(-21,0);c.quadraticCurveTo(-6,-12,14,-6);c.quadraticCurveTo(24,-2.5,25,1);c.quadraticCurveTo(20,6,6,7.5);c.quadraticCurveTo(-10,7.5,-21,0);c.closePath()};
+  body();c.fillStyle='#ff8a5c';c.fill();
+  c.save();body();c.clip();c.fillStyle='#a9bcc5';c.fillRect(-24,-14,52,14.5);c.globalAlpha=.5;for(const[x,y]of[[-10,-5],[-4,-7],[2,-5],[8,-6],[-6,-2.5],[4,-2.5]])dot(c,x,y,.9,'#5c6f78');c.globalAlpha=1;c.restore();
+  body();c.lineWidth=1.3;c.strokeStyle=INK;c.stroke();
+  c.beginPath();c.moveTo(13,-5);c.quadraticCurveTo(10.5,0,13,5);c.lineWidth=1.2;c.stroke();
+  dot(c,18.5,-1.8,1.5);
+  c.restore();
+  c.restore();
+  lab();c.lineWidth=1.3;c.strokeStyle=INK;c.stroke();
+  c.globalAlpha=.3;line(c,[[-R+4,top+7],[-R+4,bot]],2.4,'#fff');c.globalAlpha=1;
+  // ふた。プルタブは右奥、顔は真ん中
+  E(c,0,top,R,ry,'#e6ecef');c.beginPath();c.ellipse(0,top,R-4,ry-2,0,0,6.3);c.lineWidth=1.2;c.strokeStyle='#9aa7ae';c.stroke();
+  E(c,15,top-2.5,4.5,1.8,null,0,1.3);dot(c,10.5,top-2,1.1,'#9aa7ae');
+  dot(c,-7,top,2);dot(c,7,top,2);
+  c.beginPath();c.arc(0,top+1.2,2.6,.3,PI-.3);c.lineWidth=1.6;c.strokeStyle=INK;c.stroke()},
+bcroll(c,p){c.translate(0,-21);c.rotate(-(p.roll??p.t*7));
+  E(c,0,0,21,21,'#20302a');E(c,0,0,17,17,'#fbf7ec',0,1.2);rice(c,-11,-6);rice(c,7,9);rice(c,-4,11);
+  E(c,0,0,8.5,8.5,'#a5552c',0,1.4);line(c,[[-5,-3],[4,-5]],1.4,'#e2a075');line(c,[[-4,3],[5,1]],1.4,'#e2a075');
+  E(c,7,-9,3.4,2.4,'#7cb35a',.4,1);dot(c,-7,6,1.7);dot(c,3,9,1.7)},
+maple(c,p){c.translate(0,-Math.abs(p.sw)*3);legs(c,p,-11,11,-10,10);
+  c.beginPath();c.moveTo(-28,-22);c.quadraticCurveTo(-24,-42,4,-40);c.quadraticCurveTo(30,-38,28,-20);c.quadraticCurveTo(0,-10,-28,-22);c.closePath();P(c,'#d9682e');
+  c.globalAlpha=.55;line(c,[[-16,-34],[-6,-24]],3,'#ffcf7a');line(c,[[0,-36],[10,-25]],3,'#ffcf7a');c.globalAlpha=1;
+  for(const x of[-14,0,14])line(c,[[x-4,-36],[x+4,-24]],2.2,'#6b2f14');
+  mapleLeaf(c,6,-48,10,'#e3170a');
+  dot(c,-18,-28,2);line(c,[[-24,-22],[-17,-21]],1.6)},
+candy(c,p){c.translate(0,-Math.abs(p.sw)*6);legs(c,p,-7,7,-8,8);
+  poly(c,[[-14,-26],[-28,-36],[-24,-26],[-28,-16]],'#ffe1c0',1.6);poly(c,[[14,-26],[28,-36],[24,-26],[28,-16]],'#ffe1c0',1.6);
+  rr(c,-15,-36,30,20,8,'#e0662c');
+  c.globalAlpha=.6;line(c,[[-9,-32],[-3,-20]],2.6,'#ffcf7a');line(c,[[3,-32],[9,-20]],2.6,'#ffcf7a');c.globalAlpha=1;
+  dot(c,-7,-27,1.8);dot(c,3,-27,1.8);line(c,[[-4,-22],[0,-22]],1.5)},
+steel(c,p){fish(c,p,{L:64,H:26,back:'#6f8796',belly:'#eef2f2',stripe:'#e07aa0',spots:'#33454f',
+  after(c,L,H){c.beginPath();c.arc(-L*.34,-H*.06,H*.5,3.3,6.1);c.closePath();P(c,'#b9c6ce',2);line(c,[[-L*.34-H*.5,-H*.1],[-L*.34+H*.48,-H*.1]],2.6,'#8a99a2');
+    for(let i=0;i<3;i++)dot(c,-L*.34-H*.3+i*H*.3,-H*.3,1.3,'#5c6a72');dot(c,-L*.36,-H*.02,2.3)}})},
+cedar(c,p){const b=Math.sin(p.t*8)*2;
+  c.globalAlpha=.7;for(let i=0;i<4;i++)E(c,30+i*8,-4-(i%2)*4,5,3,'#e9f7f4',0,0);c.globalAlpha=1;
+  c.beginPath();c.moveTo(-40,-16+b);c.quadraticCurveTo(-44,-24+b,-36,-24+b);c.lineTo(34,-22+b);c.quadraticCurveTo(40,-18+b,34,-12+b);c.lineTo(-34,-10+b);c.closePath();P(c,'#b0683a');
+  line(c,[[-28,-17+b],[24,-16+b]],1.2,'rgba(60,30,10,.55)');
+  E(c,2,-30+b,25,9,'#f08a5c');for(const x of[-10,2,14])line(c,[[x-3,-37+b],[x+3,-24+b]],2,'#7a3a18');
+  line(c,[[16,-38+b],[26,-44+b]],1.8,'#4f7a3a');dot(c,-15,-31+b,2);line(c,[[-22,-27+b],[-15,-26+b]],1.5)},
+yking(c,p){fish(c,p,{L:110,H:46,y:52,back:'#4f6b62',belly:'#f6efe3',stripe:'#ff7a59',spots:'#1f322c',ws:6,wag:.12,
+  after(c,L,H){c.globalAlpha=.4;line(c,[[-L*.1,-H*.36],[L*.2,-H*.3]],3,'#fff');c.globalAlpha=1;
+    c.save();c.translate(-L*.31,-H*.55);c.rotate(-.14);poly(c,[[-13,4],[-16,-14],[-7,-5],[0,-17],[7,-5],[16,-14],[13,4]],'#ffd23b',2);mapleLeaf(c,0,-4,4,'#e3170a');c.restore()}})},
+// キング・オブ・キングス。和柄とカエデのマントをはおったマスノスケが、キングサーモンそのものを槍にして構える
+kok(c,p){fish(c,p,{L:136,H:56,y:64,back:'#5b7c8d',belly:'#f4efe6',stripe:'#ff8e6e',spots:'#21343f',ws:6,wag:.1,eye:3,
+  after(c,L,H){const sw=Math.sin(p.t*3)*3,PI=Math.PI;
+    // マント
+    c.beginPath();c.moveTo(-L*.2,-H*.5);c.quadraticCurveTo(L*.05,-H*.78,L*.3,-H*.4);c.quadraticCurveTo(L*.5,-H*.1+sw,L*.56,H*.32+sw);c.quadraticCurveTo(L*.3,H*.05,L*.08,H*.12);c.quadraticCurveTo(-L*.08,-H*.06,-L*.2,-H*.5);c.closePath();P(c,'#c42a1c',2);
+    c.save();c.clip();c.strokeStyle='rgba(255,210,59,.55)';c.lineWidth=1.4;for(let y=-H;y<H;y+=7)for(let x=-L*.3;x<L*.6;x+=12){c.beginPath();c.arc(x+((y/7)%2?6:0),y,5,PI,PI*2);c.stroke()}c.restore();
+    mapleLeaf(c,L*.24,-H*.14,7,'#ffd23b');
+    c.beginPath();c.moveTo(-L*.22,-H*.5);c.quadraticCurveTo(L*.05,-H*.84,L*.32,-H*.42);c.lineWidth=7;c.strokeStyle='#fbf8f0';c.lineCap='round';c.stroke();
+    for(const t of[.15,.4,.65,.9]){const x=-L*.22+t*L*.54,y=-H*.5-Math.sin(t*3.14)*H*.24;dot(c,x,y,1.2)}
+    // 王冠(マスノスケの赤い宝石と、キングサーモンのカエデ)
+    c.save();c.translate(-L*.3,-H*.62);c.rotate(-.12);poly(c,[[-17,5],[-20,-16],[-9,-6],[0,-21],[9,-6],[20,-16],[17,5]],'#ffd23b',2.2);dot(c,-5,-1,2.6,'#e3170a');mapleLeaf(c,6,-1,3.6,'#e3170a');c.restore();
+    // やる気のある太い眉。鼻先側を下げる
+    const ex=-L*.36,ey=-H*.12;c.beginPath();c.moveTo(ex-10,ey-3);c.quadraticCurveTo(ex,ey-9,ex+10,ey-12);c.lineWidth=5.5;c.strokeStyle=INK;c.lineCap='round';c.stroke();
+    // 槍になったキングサーモン
+    c.save();c.translate(-L*.02,H*.74);c.rotate(.05);kingLance(c,L*1.15,15);c.restore();
+    // 威厳のある髭。くるんと巻いた口ひげと、下へ伸びるあごひげ
+    const mx=-L*.47,my=H*.13;
+    c.beginPath();c.moveTo(mx-2,my+2);c.quadraticCurveTo(mx-6,my+12,mx-3,my+24);c.quadraticCurveTo(mx+1,my+19,mx+4,my+26);c.quadraticCurveTo(mx+8,my+18,mx+13,my+20);c.quadraticCurveTo(mx+10,my+10,mx+12,my+2);c.closePath();P(c,'#f2efe8',1.8);
+    line(c,[[mx+2,my+8],[mx+1,my+18]],1.1,'#b9b3a6');line(c,[[mx+7,my+8],[mx+8,my+17]],1.1,'#b9b3a6');
+    for(const sx of[-1,1]){c.beginPath();c.moveTo(mx+3,my);c.quadraticCurveTo(mx+3+sx*9,my+5,mx+3+sx*13,my-2);c.quadraticCurveTo(mx+3+sx*15,my-6,mx+3+sx*11,my-6);c.lineWidth=4;c.strokeStyle=INK;c.lineCap='round';c.stroke();c.lineWidth=2.2;c.strokeStyle='#f2efe8';c.stroke()}
+    // 胸びれで槍をにぎる
+    c.save();c.translate(-L*.14,H*.22);c.rotate(.75);poly(c,[[0,-4],[L*.17,0],[0,5]],'#5b7c8d');c.restore()}})},
+
 dribble(c,p){DRAW.ashi(c,p);if(!(p.lunge>0)){c.save();c.translate(-34,0);c.scale(.62,.62);DRAW.onigiri(c,{...p,roll:(p.roll||0)*1.4});c.restore()}},
 kohaku(c,p){fish(c,p,{L:62,H:27,back:'#f2efe6',belly:'#fff',fin:'#c9c3b4',
   paint(c,L,H){c.fillStyle='#df3a2b';c.fillRect(-L,-H*3,L,H*6)},
@@ -314,6 +440,44 @@ const EBASE=[
   sign(c,'木彫り工房',0,-74,90,22,'#fff','#17242c',12);
   rr(c,-14,-40,28,46,1,'#3a2a1d',2);
   c.globalAlpha=.6;for(let i=0;i<3;i++){const o=(t*9+i*14)%40;E(c,36+i*3,-126-o,5+i,4+i,'#e8e8e4',0,0)}c.globalAlpha=1;
+},
+(c,t)=>{ // 魚車(フィッシュホイール)。かごが回って魚をすくう
+  rr(c,-70,-12,140,14,2,'#7a5434',2.2);
+  for(const x of[-48,48])line(c,[[x,-12],[x*.2,-104]],5,'#5b3d26');
+  c.save();c.translate(0,-70);c.rotate(-t*.8);
+  for(let i=0;i<4;i++){c.save();c.rotate(i*1.5708);line(c,[[0,0],[0,-62]],4,'#5b3d26');
+    if(i%2){rr(c,-20,-74,40,22,3,'#c9a96b',2);c.strokeStyle='rgba(23,36,44,.55)';c.lineWidth=1;for(let k=1;k<5;k++){c.beginPath();c.moveTo(-20+k*8,-74);c.lineTo(-20+k*8,-52);c.stroke()}}
+    else rr(c,-18,-70,36,14,2,'#9c7a50',2);c.restore()}
+  E(c,0,0,8,8,'#3a2a1d');c.restore();
+},
+(c,t)=>{ // 丸太小屋
+  for(let i=0;i<6;i++)rr(c,-62,-14-i*13,124,13,6,i%2?'#8a5a34':'#9c6a3e',1.8);
+  poly(c,[[-74,-88],[0,-128],[74,-88]],'#4a5a3a',2.4);
+  rr(c,-14,-48,28,48,1,'#3a2a1d',2);rr(c,26,-62,22,18,1,'#ffd98a',2);
+  rr(c,34,-136,12,30,1,'#6f6f6f',2);c.globalAlpha=.6;for(let i=0;i<3;i++){const o=(t*9+i*14)%40;E(c,40+i*3,-142-o,5+i,4+i,'#e8e8e4',0,0)}c.globalAlpha=1;
+},
+(c,t)=>{ // 国境の関所
+  for(const x of[-56,56])rr(c,x-6,-110,12,116,1,'#6b4a2c',2);
+  rr(c,-64,-118,128,22,2,'#6b4a2c',2);sign(c,'国境',0,-107,70,18,'#fff','#17242c',13);
+  line(c,[[-50,-60],[60,-48+Math.sin(t*2)*2]],6,INK);line(c,[[-50,-60],[60,-48+Math.sin(t*2)*2]],3.4,'#e3170a');
+  line(c,[[40,-118],[40,-176]],3,'#5d4630');
+  rr(c,40,-176,48,26,1,'#fff',2);c.fillStyle='#e3170a';c.fillRect(41,-175,11,24);c.fillRect(76,-175,11,24);mapleLeaf(c,64,-163,8,'#e3170a');
+},
+(c,t)=>{ // 外輪船
+  c.beginPath();c.moveTo(-84,-30);c.lineTo(78,-30);c.lineTo(66,4);c.lineTo(-74,4);c.closePath();P(c,'#f4f1e8');
+  rr(c,-62,-62,124,32,2,'#f4f1e8',2.2);rr(c,-40,-86,80,24,2,'#f4f1e8',2.2);
+  for(let i=0;i<6;i++)rr(c,-54+i*20,-56,10,12,1,'#7fb7c9',1.4);
+  rr(c,-6,-128,14,42,1,'#2b2b2b',2);rr(c,-9,-130,20,6,1,'#e3170a',1.6);
+  c.globalAlpha=.6;for(let i=0;i<3;i++){const o=(t*12+i*14)%44;E(c,2+i*4,-136-o,6+i,5+i,'#d8dedd',0,0)}c.globalAlpha=1;
+  c.save();c.translate(92,-22);c.rotate(-t*2);E(c,0,0,26,26,'#c0392b');for(let i=0;i<8;i++){c.save();c.rotate(i*.785);rr(c,-3,-26,6,26,1,'#7a1f16',1.2);c.restore()}E(c,0,0,6,6,'#2b2b2b');c.restore();
+  sign(c,'KLONDIKE号',0,-16,84,16,'#24365c','#fff',10);
+},
+(c,t)=>{ // クマの岩穴
+  c.beginPath();c.moveTo(-80,6);c.lineTo(-70,-70);c.lineTo(-30,-112);c.lineTo(20,-120);c.lineTo(62,-86);c.lineTo(82,6);c.closePath();P(c,'#7b7f80');
+  c.beginPath();c.moveTo(-34,6);c.quadraticCurveTo(-34,-62,4,-62);c.quadraticCurveTo(40,-62,40,6);c.closePath();P(c,'#2a2622');
+  dot(c,-6,-34,2.6,'#ffd23b');dot(c,12,-34,2.6,'#ffd23b');
+  line(c,[[-58,-60],[-40,-30]],1.6);line(c,[[46,-80],[56,-40]],1.6);
+  sign(c,'クマの巣',0,-136,70,20,'#fff','#17242c',12);
 },
 ];
 function drawEnemyBase(c,ch,t,g){c.save();c.translate(0,g);EBASE[ch](c,t);c.restore()}
@@ -827,10 +991,102 @@ function edVow(c,v){
     c.fillStyle=INK;c.fillText('つづく',4,5);c.lineWidth=8;c.strokeStyle=INK;c.strokeText('つづく',0,0);c.fillStyle='#ff8a5c';c.fillText('つづく',0,0);c.restore();
     ecap(c,'「12年後の遡上(ハード)」がひらいた',186,esm((v-14.8)/.6),18)}
 }
+
+// ユーコン川の導入。嵐で流され、ユーコン川へ帰るキングサーモンたちに出会う
+const YI_T=[7.5,14,28.5],YI_LEN=34.5;
+function seaBack(c,top,bot,wy,t,amp,col){
+  const W=ED.W;let g=c.createLinearGradient(0,0,0,wy);g.addColorStop(0,top);g.addColorStop(1,bot);c.fillStyle=g;c.fillRect(0,0,W,360);
+  c.beginPath();c.moveTo(0,360);for(let x=0;x<=W+10;x+=10)c.lineTo(x,wy+Math.sin(x*.02+t*1.6)*amp+Math.sin(x*.047-t*2.3)*amp*.5);c.lineTo(W,360);c.closePath();c.fillStyle=col;c.fill();c.lineWidth=2.4;c.strokeStyle=INK;c.stroke();
+}
+function edYIntro(c,t){
+  const W=ED.W;
+  if(t<YI_T[0]){
+    // 嵐の海
+    const fl=(t>2&&t<2.25)||(t>4.6&&t<4.8);
+    seaBack(c,fl?'#c9d6e2':'#1b2633','#3b4f5e',170,t,24,'#2c5a6b');
+    c.strokeStyle='rgba(220,235,245,.45)';c.lineWidth=1.6;for(let i=0;i<40;i++){const x=(hz(i)*W+t*160)%W,y=(hz(i+.3)*360+t*520)%360;c.beginPath();c.moveTo(x,y);c.lineTo(x-8,y+18);c.stroke()}
+    for(let i=0;i<9;i++){const a=t*1.4+i*.7,x=W*.15+i*W*.08+Math.sin(a)*30,y=230+Math.sin(a*1.3+i)*40;c.save();c.translate(x,y);c.rotate(Math.sin(a*2)*1.2);eact(c,i%3?'shake':'gin',0,0,.42,{t:t*3+i,sw:0,atk:0,roll:0},1);c.restore()}
+    for(let i=0;i<6;i++){const x=hz(i+2)*W,y=200+Math.sin(t*2+i)*16;E(c,x,y,22,8,'#e9f7f4',0,0)}
+    ecap(c,'ある年、海で大きな嵐が来た。',46,efade(t,.6,7),22);
+  }else if(t<YI_T[1]){
+    const v=t-YI_T[0];
+    seaBack(c,'#cfe3ee','#f3efe2',190,v,5,'#3b7d93');
+    for(const[id,x,y,k]of[['shake',.32,262,.6],['sakura',.47,286,.55],['gin',.6,258,.55],['ikura',.42,312,.9]]){eact(c,id,W*x,y,k,{t:v+x*9,sw:0,atk:0,roll:0},1);eword(c,'?',W*x+(id==='ikura'?0:-6),y-(id==='ikura'?34:52)-Math.abs(Math.sin(v*3+x*9))*6,efade(v,.8+x,9),18,'#ffe63b')}
+    ecap(c,'気がつくと、知らない海。',46,efade(v,.4,3.4),22);
+    ecap(c,'生まれた川へ帰る道が、わからない。',46,efade(v,3.6,6.4),22);
+  }else if(t<YI_T[2]){
+    const v=t-YI_T[1],cx=esm(v/2.4);
+    seaBack(c,'#cfe3ee','#f3efe2',190,v,5,'#3b7d93');
+    eact(c,'shake',W*.28,262,.6,{t:v,sw:0,atk:0,roll:0},1);eact(c,'sakura',W*.18,286,.55,{t:v+1,sw:0,atk:0,roll:0},1);eact(c,'ikura',W*.24,316,.9,{t:v+2,sw:0,atk:0,roll:0},1);
+    eact(c,'yking',W*(1.1-.42*cx),272,.62,{t:v,sw:0,atk:0,roll:0});eact(c,'steel',W*(1.2-.42*cx),318,.56,{t:v+1,sw:0,atk:0,roll:0});
+    const kx=W*.68;
+    ebub(c,'迷子かい?',kx,150,kx-20,222,efade(v,2.6,4.8,.3),16);
+    ebub(c,'おれたちは、ユーコン川へ帰るところだ',kx-40,150,kx-20,222,efade(v,5,7.4,.3),15);
+    ebub(c,'いっしょに来るかい?',kx,150,kx-20,222,efade(v,7.6,9.4,.3),16);
+    ebub(c,'うん!',W*.28,170,W*.26,230,efade(v,8.8,10,.3),16);
+    // ユーコン川ではオキアミがたまりにくいことを、物語の中で先に伝えておく
+    ebub(c,'川に入ったら、もう何も食べないんだ',kx-40,150,kx-20,222,efade(v,10.3,12.4,.3),15);
+    ebub(c,'おなかいっぱいにしてから行くぞ!',kx-30,150,kx-20,222,efade(v,12.6,14.3,.3),15);
+  }else{
+    const v=t-YI_T[2];
+    let g=c.createLinearGradient(0,0,0,360);g.addColorStop(0,'#1f5b63');g.addColorStop(1,'#0d3440');c.fillStyle=g;c.fillRect(0,0,W,360);
+    ecap(c,'めざすは、3,000km先。',110,efade(v,.3,6,.4),22);
+    if(v>1.4){const a=esm((v-1.4)/.5),sc=1+.3*(1-esm((v-1.4)/.4));c.save();c.globalAlpha=a;c.translate(W/2,190);c.scale(sc,sc);c.rotate(-.04);c.font="46px 'Dela Gothic One',sans-serif";c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';
+      c.fillStyle=INK;c.fillText('ユーコン川へ',4,5);c.lineWidth=8;c.strokeStyle=INK;c.strokeText('ユーコン川へ',0,0);c.fillStyle='#ff8a5c';c.fillText('ユーコン川へ',0,0);c.restore()}
+  }
+}
+// ユーコン川のエンディング。日本生まれの鮭たちが、雄大なユーコン川をながめる
+const YE_T=8.5,YE_LEN=29;
+function yukonView(c,v){
+  const W=ED.W,pan=v*3;
+  let g=c.createLinearGradient(0,0,0,200);g.addColorStop(0,'#f7c48a');g.addColorStop(1,'#ffe9c8');c.fillStyle=g;c.fillRect(0,0,W,360);
+  E(c,W*.7-pan*.2,150,34,34,'#ffb35c',0,0);c.globalAlpha=.4;E(c,W*.7-pan*.2,150,58,58,'#ffe0aa',0,0);c.globalAlpha=1;
+  const ridge=(y,amp,col,seed,snow)=>{c.beginPath();c.moveTo(0,200);for(let x=-20;x<=W+20;x+=22){const h=y-amp*hz(Math.floor((x+pan*(seed%3+1)*.3)/22)+seed);c.lineTo(x,h)}c.lineTo(W,200);c.closePath();c.fillStyle=col;c.fill();
+    if(snow){c.save();c.clip();c.fillStyle='rgba(255,255,255,.85)';c.fillRect(0,0,W,y-amp*.62);c.restore()}};
+  ridge(150,70,'#8e9fb3',3,1);ridge(178,46,'#6f8796',7,0);ridge(200,24,'#4f6b5a',11,0);
+  c.fillStyle='#55704f';c.fillRect(0,198,W,90);
+  // 遠くへ細くなっていく川
+  c.beginPath();c.moveTo(W*.5,198);c.quadraticCurveTo(W*.62,220,W*.42,240);c.quadraticCurveTo(W*.2,262,W*.36,300);c.lineTo(W*.86,300);c.quadraticCurveTo(W*.5,262,W*.62,238);c.quadraticCurveTo(W*.74,218,W*.53,198);c.closePath();
+  c.fillStyle='#4fb3bf';c.fill();c.lineWidth=2;c.strokeStyle=INK;c.stroke();
+  c.globalAlpha=.6;for(let i=0;i<6;i++){const y=212+i*14;line(c,[[W*.46+i*6,y],[W*.5+i*9,y]],1.6,'#fff')}c.globalAlpha=1;
+  for(let i=0;i<26;i++){const x=hz(i+9)*W,y=204+hz(i+4)*70,h=8+hz(i+1)*16;if(Math.abs(x-W*(.5+.25*(y-200)/100))<W*.14*(y-190)/100)continue;c.fillStyle='#2f4f3a';c.beginPath();c.moveTo(x,y-h);c.lineTo(x+h*.3,y);c.lineTo(x-h*.3,y);c.closePath();c.fill()}
+  c.fillStyle='#2a8ea3';c.fillRect(0,300,W,60);line(c,[[0,300],[W,300]],2.4);
+}
+function edYukon(c,t){
+  const W=ED.W;
+  if(t<YE_T){
+    // 魚道をのぼりきる
+    let g=c.createLinearGradient(0,0,0,240);g.addColorStop(0,'#ffd0a0');g.addColorStop(1,'#f2e6d6');c.fillStyle=g;c.fillRect(0,0,W,360);
+    for(let i=0;i<7;i++){const x=W*.1+i*W*.12,y=300-i*22;rr(c,x,y,W*.12+2,360-y,0,'#9c6a3e',2);c.fillStyle='#4fb3bf';c.fillRect(x+2,y+3,W*.12-2,8)}
+    const k=esm(t/6);for(const[id,o,s]of[['shake',0,.5],['ikura',.06,.8],['aramaki',.12,.38],['yking',.2,.5]]){const q=Math.max(0,Math.min(1,k*1.2-o)),x=W*(.12+q*.74),y=300-q*132-30;eact(c,id,x,y,s,{t:t+o*9,sw:Math.sin(t*6+o*20)*.5,atk:0,roll:t*4},1)}
+    ecap(c,'3,000km。ユーコン川を、のぼりきった。',46,efade(t,.6,8,.5),20);
+  }else if(t<YE_LEN-4){
+    const v=t-YE_T;yukonView(c,v);
+    const P0={t:v,sw:0,atk:0,roll:0};
+    eact(c,'shake',W*.2,344,.85,P0,1);eact(c,'ikura',W*.1,354,1.1,{...P0,t:v+1},1);eact(c,'gin',W*.3,356,.7,{...P0,t:v+3},1);eact(c,'yking',W*.46,350,.7,{...P0,t:v+2},1);
+    ebub(c,'大きいなあ…',W*.2,250,W*.2,300,efade(v,1,3.6,.3),16);
+    ebub(c,'いい川だろう',W*.46,250,W*.44,298,efade(v,3.8,6.2,.3),16);
+    ebub(c,'ぼくの生まれた川も、いい川なんだ',W*.26,250,W*.2,298,efade(v,6.4,9.2,.3),15);
+    ebub(c,'いつか、案内してくれよ',W*.46,250,W*.44,298,efade(v,9.4,12,.3),15);
+    ecap(c,'日本生まれの鮭たちは、雄大なユーコン川をながめていた。',36,efade(v,12.2,YE_LEN-4-YE_T,.5),18);
+  }else{
+    const v=t-(YE_LEN-4);yukonView(c,v+YE_LEN);
+    c.fillStyle=`rgba(13,30,38,${Math.min(.55,v*.4)})`;c.fillRect(0,0,W,360);
+    const a=esm(v/.6);c.save();c.globalAlpha=a;c.translate(W/2,170);c.rotate(-.04);c.font="52px 'Dela Gothic One',sans-serif";c.textAlign='center';c.textBaseline='middle';c.lineJoin='round';
+    c.fillStyle=INK;c.fillText('おわり',4,5);c.lineWidth=8;c.strokeStyle=INK;c.strokeText('おわり',0,0);c.fillStyle='#ff8a5c';c.fillText('おわり',0,0);c.restore();
+  }
+}
 const ED_T2=14,ED_T3=26,ED_T4=ED_T3+ED_RIVER,ENDING_LEN=ED_T4+13,ED_T5=ED_T4+11,VOW_LEN=18;
-const endingLen=lap=>lap===2?ED_T5+VOW_LEN:ENDING_LEN;
+const endingLen=lap=>lap==='yintro'?YI_LEN:lap==='yukon'?YE_LEN:lap===2?ED_T5+VOW_LEN:ENDING_LEN;
 function drawEnding(c,t,W,lap){
   ED.W=W;ED.lap=lap;c.save();
+  if(lap==='yintro'||lap==='yukon'){
+    const cuts=lap==='yintro'?YI_T:[YE_T,YE_LEN-4];
+    (lap==='yintro'?edYIntro:edYukon)(c,t);
+    let k=1-t/.9;for(const b of cuts)k=Math.max(k,1-Math.abs(t-b)/.7);
+    if(k>0){c.fillStyle=`rgba(13,30,38,${Math.min(1,k*1.25)})`;c.fillRect(0,0,W,360)}
+    c.restore();return;
+  }
   const vow=lap===2&&t>=ED_T5;
   if(t<ED_T2)edSpawn(c,t);else if(t<ED_T3)edHatch(c,t-ED_T2);else if(t<ED_T4)edRiver(c,t-ED_T3);else if(!vow)edSea(c,t-ED_T4);else edVow(c,t-ED_T5);
   // 場面の切り替えは暗転でつなぐ
@@ -840,6 +1096,8 @@ function drawEnding(c,t,W,lap){
 }
 
 function seeded(a){return()=>{a=(a*1664525+1013904223)|0;return(a>>>0)/4294967296}}
+// 北の森のトウヒ。細長い三角を重ねる
+function spruce(n,x,y,h,R){n.fillStyle=R()<.5?'#2f4f3a':'#3a5c42';n.strokeStyle=INK;n.lineWidth=1.8;const w=h*.22;for(let i=0;i<4;i++){const t=y-h+i*h*.22;n.beginPath();n.moveTo(x,t);n.lineTo(x+w*(.5+i*.25),t+h*.34);n.lineTo(x-w*(.5+i*.25),t+h*.34);n.closePath();n.fill();n.stroke()}n.fillStyle='#4a3324';n.fillRect(x-2,y-6,4,6)}
 function makeBackground(ch,L,VH,WATER_Y,GROUND,chapters){
   const pal=chapters[ch],S=2;
   const far=document.createElement('canvas'),near=document.createElement('canvas');
@@ -851,18 +1109,29 @@ function makeBackground(ch,L,VH,WATER_Y,GROUND,chapters){
   f.fillStyle='rgba(255,255,255,.7)';
   for(let i=0;i<L/170;i++){const x=R()*L,y=30+R()*90,w=40+R()*70;f.beginPath();f.ellipse(x,y,w,9+R()*6,0,0,6.3);f.ellipse(x+w*.4,y-8,w*.5,10,0,0,6.3);f.fill()}
   const ridge=(base,amp,col,step)=>{f.fillStyle=col;f.beginPath();f.moveTo(0,WATER_Y);let y=base;for(let x=0;x<=L+step;x+=step){y=base-R()*amp;f.lineTo(x,y)}f.lineTo(L,WATER_Y);f.closePath();f.fill()};
-  if(ch===3){ridge(70,50,pal.mtn+'99',46);ridge(120,50,pal.mtn,38)}
+  if(ch===6){f.fillStyle='#ffb35c';f.beginPath();f.arc(L*.62,WATER_Y-40,58,0,6.3);f.fill();f.fillStyle='rgba(255,224,170,.5)';f.beginPath();f.arc(L*.62,WATER_Y-40,84,0,6.3);f.fill()}
+  if(ch>=5){
+    if(ch===9||ch===7){ridge(80,70,'#e7edf1',80);ridge(140,40,pal.mtn,52)}
+    else if(ch===8){ridge(110,50,pal.mtn+'99',48);ridge(140,30,pal.mtn,40)}
+    else ridge(165,26,pal.mtn,80);
+  }
+  else if(ch===3){ridge(70,50,pal.mtn+'99',46);ridge(120,50,pal.mtn,38)}
   else if(ch===4){ridge(90,70,'#d9dfe6',90);ridge(140,40,pal.mtn,46)}
   else if(ch===2){ridge(150,26,pal.mtn,60)}
   else ridge(160,34,pal.mtn,70);
   // 岸
-  n.fillStyle=ch===2?'#b7b0a0':'#6f9a62';n.fillRect(0,WATER_Y-16,L,18);
+  n.fillStyle=ch===2?'#b7b0a0':ch===5?'#8fa37a':'#6f9a62';n.fillRect(0,WATER_Y-16,L,18);
   n.strokeStyle=INK;n.lineWidth=2;n.beginPath();n.moveTo(0,WATER_Y-16);n.lineTo(L,WATER_Y-16);n.stroke();
   const props={
     0(x){const k=R();if(k<.5){n.fillStyle='#fff';n.strokeStyle=INK;n.lineWidth=2;n.fillRect(x,WATER_Y-96,18,80);n.strokeRect(x,WATER_Y-96,18,80);n.fillStyle='#e3170a';n.fillRect(x,WATER_Y-72,18,18);n.strokeRect(x,WATER_Y-72,18,18);n.beginPath();n.rect(x-3,WATER_Y-110,24,14);n.fillStyle='#ffe56b';n.fill();n.stroke()}else{for(let i=0;i<4;i++){n.strokeStyle='#4f6b45';n.lineWidth=2;n.beginPath();n.moveTo(x+i*5,WATER_Y-16);n.lineTo(x+i*7-6,WATER_Y-40);n.stroke()}}},
     1(x){n.strokeStyle='#3a2a1d';n.lineWidth=4;n.beginPath();n.moveTo(x,WATER_Y);n.lineTo(x,WATER_Y-76);n.stroke();n.strokeStyle='rgba(23,36,44,.45)';n.lineWidth=1;for(let i=0;i<9;i++){n.beginPath();n.moveTo(x,WATER_Y-74+i*9);n.lineTo(x+120,WATER_Y-70+i*9);n.moveTo(x+i*15,WATER_Y-74);n.lineTo(x+i*15,WATER_Y-2);n.stroke()}n.fillStyle='#ff8a2e';n.strokeStyle=INK;n.lineWidth=1.6;for(let i=0;i<5;i++){n.beginPath();n.arc(x+i*30,WATER_Y-74,5,0,6.3);n.fill();n.stroke()}},
     2(x){const k=R();if(k<.34){n.fillStyle='#8e9aa3';n.strokeStyle=INK;n.lineWidth=2;n.fillRect(x-10,WATER_Y-74,10,74);n.strokeRect(x-10,WATER_Y-74,10,74);n.fillRect(x+230,WATER_Y-74,10,74);n.strokeRect(x+230,WATER_Y-74,10,74);n.fillRect(x-40,WATER_Y-90,310,16);n.strokeRect(x-40,WATER_Y-90,310,16)}else{const h=34+R()*50,w=40+R()*40;const cols=['#d9cfc0','#b9c6cf','#d7b8a4','#c6c9a8'];n.fillStyle=cols[R()*4|0];n.strokeStyle=INK;n.lineWidth=2;n.fillRect(x,WATER_Y-16-h,w,h);n.strokeRect(x,WATER_Y-16-h,w,h);n.fillStyle='#7fb7c9';for(let i=0;i<3;i++){n.fillRect(x+8+i*14,WATER_Y-10-h+6,8,8)}}},
     3(x){n.fillStyle='#2f6650';n.strokeStyle=INK;n.lineWidth=2;for(let i=0;i<3;i++){const h=46+R()*26;n.beginPath();n.moveTo(x+i*14-14,WATER_Y-16);n.lineTo(x+i*14,WATER_Y-16-h);n.lineTo(x+i*14+14,WATER_Y-16);n.closePath();n.fill();n.stroke()}},
+    5(x){const k=R();if(k<.45){n.strokeStyle='#6b4a2c';n.lineWidth=3;n.beginPath();n.moveTo(x,WATER_Y-16);n.lineTo(x,WATER_Y-62);n.moveTo(x+70,WATER_Y-16);n.lineTo(x+70,WATER_Y-62);n.moveTo(x-6,WATER_Y-58);n.lineTo(x+76,WATER_Y-58);n.stroke();n.fillStyle='#d9472b';n.strokeStyle=INK;n.lineWidth=1.4;for(let i=0;i<6;i++){n.beginPath();n.rect(x+4+i*11,WATER_Y-56,7,22);n.fill();n.stroke()}}else{n.fillStyle='#a8957a';n.strokeStyle=INK;n.lineWidth=2;n.beginPath();n.ellipse(x,WATER_Y-19,34,5,-.05,0,6.3);n.fill();n.stroke()}},
+    6(x){spruce(n,x,WATER_Y-16,40+R()*30,R)},
+    7(x){spruce(n,x,WATER_Y-16,46+R()*34,R);if(R()<.4)spruce(n,x+22,WATER_Y-16,34+R()*20,R)},
+    8(x){if(R()<.35){const w=46,h=40+R()*16,cols=['#c9a96b','#b5835a','#d7c3a0'];n.fillStyle=cols[R()*3|0];n.strokeStyle=INK;n.lineWidth=2;n.fillRect(x,WATER_Y-16-h,w,h);n.strokeRect(x,WATER_Y-16-h,w,h);n.fillRect(x-4,WATER_Y-16-h-14,w+8,14);n.strokeRect(x-4,WATER_Y-16-h-14,w+8,14);n.fillStyle='#7fb7c9';n.fillRect(x+8,WATER_Y-10-h+10,10,12);n.fillRect(x+28,WATER_Y-10-h+10,10,12)}else spruce(n,x,WATER_Y-16,44+R()*30,R)},
+    9(x){spruce(n,x,WATER_Y-16,50+R()*36,R);spruce(n,x+20,WATER_Y-16,36+R()*24,R)},
     4(x){n.strokeStyle='#4c3425';n.lineWidth=5;n.beginPath();n.moveTo(x,WATER_Y-16);n.lineTo(x,WATER_Y-56);n.stroke();const c=['#d9402a','#e8842e','#e9b53a'];for(let i=0;i<5;i++){n.fillStyle=c[R()*3|0];n.strokeStyle=INK;n.lineWidth=1.8;n.beginPath();n.arc(x+(R()-.5)*44,WATER_Y-62-R()*30,17+R()*6,0,6.3);n.fill();n.stroke()}},
   }[ch];
   for(let x=170;x<L-170;x+=ch===1?230:130+R()*130)props(x);

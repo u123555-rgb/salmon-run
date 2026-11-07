@@ -1,12 +1,14 @@
 (()=>{
 'use strict';
 const G=window.SALMON,A=window.SALMON_ART;
-const{VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,BGOD,FLOE_V,CLASH_T,CLASH_RATE,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle}=G;
+const{YUKON,stagesOf,VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,BGOD,FLOE_V,CLASH_T,CLASH_RATE,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle}=G;
 const $=id=>document.getElementById(id);
 const fmt=n=>Math.floor(n).toLocaleString('ja-JP');
 const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const KEY='salmon-run-v1',SPIN=200,MAXLV=30;
-const fresh=()=>({ikura:300,own:{shake:1,ikura:1,aramaki:1},team:['shake','ikura','aramaki'],prog:[0,0,0,0],meta:{wall:0,flood:0,stom:0},lap:0,tip:false,snd:true,fuse:[]});
+// ユーコン川の1回目。ylapはユーコン川タブで選んでいる周回
+const YL=LAPS.findIndex(l=>l.yukon);
+const fresh=()=>({ikura:300,own:{shake:1,ikura:1,aramaki:1},team:['shake','ikura','aramaki'],prog:LAPS.map(()=>0),meta:{wall:0,flood:0,stom:0},lap:0,ylap:YL,tip:false,snd:true,fuse:[]});
 // 更新で項目が増減しても、古いセーブを今の形に直して読む
 function migrate(s){
   const f=fresh(),own={};
@@ -14,12 +16,16 @@ function migrate(s){
   if(!Object.keys(own).length)Object.assign(own,f.own);
   const team=(Array.isArray(s.team)?s.team:[]).filter(k=>own[k]);
   return{...f,...s,own,team:team.length?team:Object.keys(own).slice(0,3),
-    prog:f.prog.map((_,i)=>Math.min(STAGES.length,Math.max(0,((s.prog||[])[i])|0))),
-    meta:{...f.meta,...s.meta},fuse:(Array.isArray(s.fuse)?s.fuse:[]).filter(k=>FUSE[k]),lap:Math.min(LAPS.length-1,Math.max(0,s.lap|0))};
+    prog:f.prog.map((_,i)=>Math.min(stagesOf(i).length,Math.max(0,((s.prog||[])[i])|0))),
+    meta:{...f.meta,...s.meta},fuse:(Array.isArray(s.fuse)?s.fuse:[]).filter(k=>FUSE[k]),lap:(l=>LAPS[l].yukon?0:l)(Math.min(LAPS.length-1,Math.max(0,s.lap|0))),ylap:LAPS[s.ylap]&&LAPS[s.ylap].yukon?s.ylap:YL};
 }
 let save=fresh();
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.own)save=migrate(s)}catch(e){}
 const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(save))}catch(e){}};
+// 8年後の遡上をクリアすると、ハードとユーコン川がひらく
+const lapOpen=i=>{if(!i)return true;const n=LAPS[i].need??i-1;return save.prog[n]>=stagesOf(n).length};
+const yukonOpen=()=>lapOpen(LAPS.findIndex(l=>l.yukon));
+const cleared=i=>save.prog[i]>=stagesOf(i).length;
 
 /* 音 */
 // エンディングの曲。和音は1小節ずつ、旋律は8分音符ずつ。-1はのばす
@@ -120,21 +126,37 @@ function portrait(id,px,o={}){
 let view='title',tab='map',sel='shake';
 function show(v){view=v;for(const k of['title','menu','battle','ending'])$('v-'+k).hidden=k!==v;if(v==='menu')setTab(tab);if(v==='battle')fit()}
 function setTab(t){tab=t;for(const b of document.querySelectorAll('.tabs button'))b.setAttribute('aria-selected',b.dataset.tab===t);
-  for(const k of['map','ike','lane'])$('p-'+k).hidden=k!==t;({map:renderMap,ike:renderIke,lane:renderLane})[t]();$('purse').textContent=fmt(save.ikura)}
+  for(const k of['map','yukon','ike','lane'])$('p-'+k).hidden=k!==t;({map:renderMap,yukon:renderYukon,ike:renderIke,lane:renderLane})[t]();$('purse').textContent=fmt(save.ikura)}
 function refreshPurse(){$('purse').textContent=fmt(save.ikura)}
 let toastT;function toast(s){const t=$('toast');t.textContent=s;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,1600)}
 
 /* マップ */
 function enemiesOf(s){const seen=[];for(const r of s.rules)if(!seen.includes(r.e))seen.push(r.e);return seen}
-function renderMap(){
-  const lap=save.lap,prog=save.prog[lap],p=$('p-map');p.innerHTML='';
+function renderMap(){renderRiver($('p-map'),save.lap)}
+// ユーコン川タブ。ひらく前は鍵つきで見せ、初めて開いた時は迷子になったいきさつを流す
+function renderYukon(){
+  const p=$('p-yukon');
+  if(!yukonOpen()){p.innerHTML='';const b=document.createElement('div');b.className='ylock';
+    b.innerHTML='<h2>ユーコン川</h2><p>海の向こうの大きな川。生まれた川まで、3,000km。</p>';b.appendChild(portrait('yking',120,{dark:1}));
+    const n=document.createElement('p');n.textContent='「8年後の遡上」をクリアするとひらく';b.appendChild(n);p.appendChild(b);return}
+  if(!save.yIntro){save.yIntro=true;persist();Snd.wake();playEnding('yintro',()=>show('menu'));return}
+  renderRiver(p,lapOpen(save.ylap)?save.ylap:YL);
+  const n=document.createElement('p');n.className='ynote';n.textContent='ユーコン川では、オキアミがあまりたまらない。満タンから大事に使おう。';p.insertBefore(n,p.querySelector('.river'));
+}
+function renderRiver(p,lap){
+  const prog=save.prog[lap],SL=stagesOf(lap),yk=!!LAPS[lap].yukon;p.innerHTML='';
   const laps=document.createElement('div');laps.className='laps';
-  LAPS.forEach((l,i)=>{if(i&&save.prog[i-1]<STAGES.length)return;const b=document.createElement('button');b.textContent=l.hard?l.n:i?`${l.n}(敵の強さ ×${l.m})`:l.n;b.setAttribute('aria-pressed',i===lap);b.onclick=()=>{save.lap=i;persist();renderMap()};laps.appendChild(b)});
-  if(save.prog[0]>=STAGES.length){const b=document.createElement('button');b.textContent='エンディングを見る';b.onclick=()=>{Snd.wake();playEnding(save.lap,()=>show('menu'))};laps.appendChild(b)}
-  if(laps.children.length>1||save.prog[0]>=STAGES.length)p.appendChild(laps);
+  // 「川をのぼる」タブには既存の川の周回、「ユーコン川」タブにはユーコン川の周回だけを並べる
+  LAPS.forEach((l,i)=>{if(!!l.yukon!==yk||!lapOpen(i))return;const b=document.createElement('button');b.textContent=l.btn||(l.hard?l.n:i?`${l.n}(敵の強さ ×${l.m})`:l.n);b.setAttribute('aria-pressed',i===lap);
+    b.onclick=()=>{if(yk){save.ylap=i;persist();renderYukon()}else{save.lap=i;persist();renderMap()}};laps.appendChild(b)});
+  const edOk=yk?cleared(YL):cleared(0);
+  // ユーコン川タブでは、迷子になったいきさつ(導入)をいつでも見直せる
+  if(yk){const b=document.createElement('button');b.textContent='はじまりを見る';b.onclick=()=>{Snd.wake();playEnding('yintro',()=>show('menu'))};laps.appendChild(b)}
+  if(edOk){const b=document.createElement('button');b.textContent='エンディングを見る';b.onclick=()=>{Snd.wake();playEnding(yk?YL:lap,()=>show('menu'))};laps.appendChild(b)}
+  if(laps.children.length>1||edOk)p.appendChild(laps);
   const riv=document.createElement('div');riv.className='river';let chShown=-1,nextEl=null;
-  for(let i=STAGES.length-1;i>=0;i--){
-    const s=STAGES[i],locked=i>prog,done=i<prog;
+  for(let i=SL.length-1;i>=0;i--){
+    const s=SL[i],locked=i>prog,done=i<prog;
     if(s.ch!==chShown){chShown=s.ch;const c=CHAPTERS[s.ch],h=document.createElement('div');h.className='ch-head';h.innerHTML=`<h2>${c.n}</h2><span>${c.sub}</span>`;riv.appendChild(h)}
     const el=document.createElement('div');el.className='st'+(locked?' locked':done?' done':' next');
     const km=document.createElement('div');km.className='km';km.innerHTML=`${s.km}<small>km</small>`;
@@ -150,7 +172,7 @@ function renderMap(){
   p.appendChild(riv);
   if(nextEl)requestAnimationFrame(()=>nextEl.scrollIntoView({block:'center'}));
 }
-const reward=(i,lap,first)=>Math.round(STAGES[i].reward*LAPS[lap].r*(first?1:.5));
+const reward=(i,lap,first)=>Math.round(stagesOf(lap)[i].reward*LAPS[lap].r*(first?1:.5));
 
 /* いけす */
 function abilityChips(d){
@@ -166,10 +188,13 @@ function abilityChips(d){
   if(d.heal)a.push(`仲間を回復 ${d.heal*100}%`);
   if(d.roll)a.push('止まらず転がる');
   if(d.shield)a.push('一度だけ耐える');
-  if(d.onDeath)a.push('倒れるとイクラ6粒');
+  if(d.onDeath)a.push(`倒れると${UNITS[d.onDeath.id].n}${d.onDeath.n}体`);
+  if(d.haste)a.push('仲間の足を速くする');
+  if(d.revive)a.push('一度だけ起き上がる');
+  if(d.fat)a.push(`倒れるとオキアミ +${d.fat}`);
   return a;
 }
-const unlockHint=d=>d.via==='gacha'?'回転レーンで出ることがある':d.via.clear!==undefined?`「${STAGES[d.via.clear].n}」をクリア`:'';
+const unlockHint=d=>d.yukon&&!yukonOpen()?'ユーコン川がひらくと会える':d.via==='gacha'?'回転レーンで出ることがある':d.via.clear!==undefined?`「${STAGES[d.via.clear].n}」をクリア`:d.via.yclear!==undefined?`ユーコン川の「${YUKON[d.via.yclear].n}」をクリア`:'';
 function renderIke(){
   const p=$('p-ike');p.innerHTML='';
   const h=document.createElement('h2');h.textContent=`出撃する${save.team.length}組(最大10)`;p.appendChild(h);
@@ -177,17 +202,20 @@ function renderIke(){
   for(let i=0;i<10;i++){const id=save.team[i],b=document.createElement('button');b.className='tslot'+(id?' on':'');if(id){b.appendChild(portrait(id,64));b.setAttribute('aria-label',`${UNITS[id].n}を見る`);b.onclick=()=>{sel=id;renderIke()}}else{b.disabled=true;b.setAttribute('aria-label','空き')}team.appendChild(b)}
   p.appendChild(team);
   const wrap=document.createElement('div');wrap.className='ike';
-  const grid=document.createElement('div');grid.className='grid';
-  const order=Object.keys(UNITS);
-  for(const id of order){const d=UNITS[id],own=save.own[id],b=document.createElement('button');
+  // 生まれた川の仲間とユーコン川の仲間を、別々の枠に分けて並べる
+  const cols=document.createElement('div');
+  const groups=[['生まれた川の仲間',k=>!UNITS[k].yukon],['ユーコン川の仲間',k=>UNITS[k].yukon]];
+  for(const[title,f]of groups){const gh=document.createElement('h3');gh.className='gh';gh.textContent=title;
+    const grid=document.createElement('div');grid.className='grid';cols.append(gh,grid);
+  for(const id of Object.keys(UNITS).filter(f)){const d=UNITS[id],own=save.own[id],b=document.createElement('button');
     b.className=`cell r-${d.r}${own?'':' lock'}${sel===id?' sel':''}`;
     b.appendChild(portrait(id,84,{dark:!own}));
     const n=document.createElement('span');n.className='nm';n.textContent=own?d.n:'???';b.appendChild(n);
     if(own){const l=document.createElement('span');l.className='lv';l.textContent='Lv'+own;b.appendChild(l)}
     if(save.team.includes(id)){const l=document.createElement('span');l.className='in';l.textContent='出撃';b.appendChild(l)}
-    b.onclick=()=>{sel=id;renderIke();document.querySelector('.detail').scrollIntoView({block:'nearest'})};grid.appendChild(b)}
+    b.onclick=()=>{sel=id;renderIke();document.querySelector('.detail').scrollIntoView({block:'nearest'})};grid.appendChild(b)}}
   const det=document.createElement('div');det.className='detail';det.appendChild(detailOf(sel));
-  wrap.append(grid,det);p.appendChild(wrap);
+  wrap.append(cols,det);p.appendChild(wrap);
   // 合体は隠し要素。見つけるまで名前も組み合わせも伏せる
   const fk=Object.keys(FUSE),fh=document.createElement('h2');fh.className='mt';fh.textContent=`合体 ${save.fuse.length} / ${fk.length}`;p.appendChild(fh);
   const fn=document.createElement('p');fn.className='fuse-hint';fn.textContent='出撃のしかたを工夫すると、仲間どうしが合体することがあるらしい。';p.appendChild(fn);
@@ -225,10 +253,12 @@ function detailOf(id){
 }
 
 /* 回転レーン */
+// ユーコン川の仲間は、ユーコン川がひらいてから流れてくる
+const lanePool=()=>Object.keys(UNITS).filter(k=>UNITS[k].via==='gacha'&&(!UNITS[k].yukon||yukonOpen()));
 let spinning=false,lastPull=null;
 function renderLane(){
   const p=$('p-lane');p.innerHTML='';
-  const gachaIds=Object.keys(UNITS).filter(k=>UNITS[k].via==='gacha'),got=gachaIds.filter(k=>save.own[k]).length;
+  const gachaIds=lanePool(),got=gachaIds.filter(k=>save.own[k]).length;
   const h=document.createElement('h2');h.textContent='回転レーン';p.appendChild(h);
   const lb=document.createElement('div');lb.className='lanebox';const belt=document.createElement('div');belt.className='belt';belt.id='belt';
   for(let i=0;i<12;i++){const pl=document.createElement('div');pl.className='plate'+(i%7===3?' k':i%3===1?' g':'');belt.appendChild(pl)}
@@ -252,7 +282,7 @@ function spin(){
   spinning=true;save.ikura-=SPIN;refreshPurse();Snd.coin();
   const belt=$('belt'),btn=$('btn-spin');belt.classList.add('fast');btn.disabled=true;
   const roll=Math.random(),rar=roll<.07?'UR':roll<.35?'SR':'R';
-  const pool=Object.keys(UNITS).filter(k=>UNITS[k].via==='gacha'&&UNITS[k].r===rar),id=pool[Math.random()*pool.length|0];
+  const pool=lanePool().filter(k=>UNITS[k].r===rar),id=pool[Math.random()*pool.length|0];
   setTimeout(()=>{
     const isNew=!save.own[id];
     save.own[id]=Math.min(MAXLV,(save.own[id]||0)+1);
@@ -276,12 +306,14 @@ function fit(){
 function clampCam(){if(B)cam=Math.max(0,Math.min(B.L-vw,cam))}
 new ResizeObserver(fit).observe(field);
 function startBattle(si,lap){
-  B=new Battle(si,lap,battleCfg(save));bg=A.makeBackground(STAGES[si].ch,B.L,VH,WATER_Y,GROUND,CHAPTERS);
+  B=new Battle(si,lap,battleCfg(save));bg=A.makeBackground(B.s.ch,B.L,VH,WATER_Y,GROUND,CHAPTERS);
   scene=null;adT=-1;godSfx=[];clashT=-1;$('clash').hidden=true;$('ad').hidden=true;Snd.setBgm('normal');vfx=[];slotCache=[];paused=false;userPan=0;endQueued=false;banner=null;speed=1;$('btn-speed').textContent='×1';$('over').hidden=true;
-  $('hud-stage').textContent=`${LAPS[lap].hard?'ハード ':''}${STAGES[si].km}km ${STAGES[si].n}`;
+  $('hud-stage').textContent=`${LAPS[lap].hard?'ハード ':''}${fmt(B.s.km)}km ${B.s.n}`;
   buildSlots();show('battle');fit();cam=B.L-vw;clampCam();
   const tip=$('tip');
-  if(!save.tip){tip.hidden=false;tip.textContent='下の値札を押すと仲間が出ます。オキアミは右上の胃袋にたまり、満腹になると止まります。左下で胃袋を広げられます。左の敵の拠点を壊せば勝ちです。';tip.onclick=()=>{tip.hidden=true};save.tip=true;persist();setTimeout(()=>{tip.hidden=true},9000)}else tip.hidden=true;
+  if(!save.tip){tip.hidden=false;tip.textContent='下の値札を押すと仲間が出ます。オキアミは右上の胃袋にたまり、満腹になると止まります。左下で胃袋を広げられます。左の敵の拠点を壊せば勝ちです。';tip.onclick=()=>{tip.hidden=true};save.tip=true;persist();setTimeout(()=>{tip.hidden=true},9000)}
+  else if(B.fast&&!save.yTip){tip.hidden=false;tip.textContent='川に入った鮭は、なにも食べずに泳ぎ続けます。胃袋は最大の2,600まで満タンで始まりますが、オキアミは少ししかたまりません。敵を倒すとオキアミが増えます。';tip.onclick=()=>{tip.hidden=true};save.yTip=true;persist();setTimeout(()=>{tip.hidden=true},11000)}
+  else tip.hidden=true;
 }
 // 指が触れた瞬間に反応させる。キーボード操作のclickはdetailが0になる
 function press(el,fn){el.onpointerdown=e=>{if(e.pointerType!=='mouse'||e.button===0)fn()};el.onclick=e=>{if(e.detail===0)fn()}}
@@ -342,7 +374,7 @@ $('btn-speed').onclick=()=>{speed=speed===1?2:1;$('btn-speed').textContent='×'+
 $('btn-pause').onclick=()=>togglePause();
 function togglePause(){
   if(!B||B.over)return;paused=!paused;
-  if(paused)overlay(`<h2>一時停止</h2><p>${STAGES[B.si].n}</p><div class="row"><button class="pop" id="o-resume">続ける</button><button class="pop ghost" id="o-quit">川をおりる</button></div>`,{'o-resume':togglePause,'o-quit':quit});
+  if(paused)overlay(`<h2>一時停止</h2><p>${B.s.n}</p><div class="row"><button class="pop" id="o-resume">続ける</button><button class="pop ghost" id="o-quit">川をおりる</button></div>`,{'o-resume':togglePause,'o-quit':quit});
   else $('over').hidden=true;
 }
 function quit(){B=null;scene=null;godSfx=[];clashT=-1;$('clash').hidden=true;paused=false;Snd.setBgm('normal');$('over').hidden=true;show('menu')}
@@ -379,11 +411,17 @@ function finish(){
     Snd.win();
     const first=b.si===save.prog[b.lap],gain=reward(b.si,b.lap,first);save.ikura+=gain;let unlocked=null;
     if(first){save.prog[b.lap]=b.si+1;
-      if(b.lap===0)for(const[k,d]of Object.entries(UNITS))if(d.via.clear===b.si&&!save.own[k]){save.own[k]=1;if(save.team.length<10)save.team.push(k);unlocked=k}}
+      const yk=!!LAPS[b.lap].yukon;
+      if(b.lap===0||yk)for(const[k,d]of Object.entries(UNITS))if((yk?d.via.yclear:d.via.clear)===b.si&&!save.own[k]){save.own[k]=1;if(save.team.length<10)save.team.push(k);unlocked=k}}
     persist();
-    const last=first&&b.si===STAGES.length-1,ending=last&&b.lap<LAPS.length-1;
+    const last=first&&b.si===stagesOf(b.lap).length-1,ending=last&&!LAPS[b.lap].hard&&!LAPS[b.lap].yukon&&b.lap<LAPS.length-1;
     let extra=null,html=`<h2>${last?'帰ってきた':'遡上成功'}</h2><div class="prize">イクラ +${fmt(gain)}</div>`;
     if(ending)html+=`<p>268km、泳ぎきった。川底に卵を産んで、この旅は終わる。4年後、この卵から生まれた子どもたちが、また帰ってくる。</p>`;
+    if(last&&LAPS[b.lap].yukon)html+=LAPS[b.lap].hard?`<p>4年後のユーコン川も、3,000km泳ぎきった。どんな川でも、鮭はのぼる。</p>`:`<p>3,000km、泳ぎきった。ユーコン川の仲間たちと、ここまで来た。</p>`;
+    // ユーコン川の1回目をクリアすると、ユーコン川の4年後がひらく
+    const ynext=last&&LAPS[b.lap].yukon?LAPS.findIndex(l=>l.yukon&&l.need===b.lap):-1;
+    if(ynext>=0){html+=`<p>ユーコン川の「${LAPS[ynext].btn}」がひらいた。</p>`;save.ylap=ynext;persist()}
+    if(ending&&LAPS[b.lap+1]&&LAPS[b.lap+1].hard)html+=`<p>「ユーコン川」タブがひらいた。</p>`;
     if(unlocked){html+=`<p>${UNITS[unlocked].n}が仲間になった。</p>`;extra=portrait(unlocked,110)}
     html+=`<div class="row"><button class="pop" id="o-next">川へもどる</button></div>`;
     if(ending){save.lap=b.lap+1;persist()}
@@ -399,7 +437,7 @@ function finish(){
 
 /* エンディング */
 const ecv=$('ecv'),ectx=ecv.getContext('2d');let et=0,eLap=0,eDone=null;
-function playEnding(lap,done){eLap=lap;eDone=done;et=0;$('e-next').hidden=true;Snd.setBgm('ending');show('ending')}
+function playEnding(lap,done){eLap=typeof lap==='number'&&LAPS[lap]&&LAPS[lap].yukon?'yukon':lap;eDone=done;et=0;$('e-next').hidden=true;Snd.setBgm('ending');show('ending')}
 function endEnding(){if(!eDone)return;const f=eDone;eDone=null;Snd.setBgm('normal');f()}
 $('e-skip').onclick=endEnding;$('e-next').onclick=endEnding;
 function tickEnding(dt){
@@ -435,6 +473,10 @@ function drainFx(){
     else if(f.k==='crit'){vfx.push({k:'word',x:f.x,y:f.y-16,s:'トロ!',col:'#ff5a2b',t:0,life:.7});Snd.big()}
     else if(f.k==='kb'){vfx.push({k:'word',x:f.x,y:f.y-20,s:'ドン',col:'#fff',t:0,life:.4})}
     else if(f.k==='guard')vfx.push({k:'word',x:f.x,y:GROUND-70,s:'耐えた',col:'#ffe63b',t:0,life:.8});
+    else if(f.k==='revive'){vfx.push({k:'word',x:f.x,y:GROUND-70,s:'起き上がった',col:'#8dff9c',t:0,life:1});Snd.heal()}
+    else if(f.k==='haste')vfx.push({k:'word',x:f.x,y:GROUND-62,s:'速',col:'#ffb3c7',t:0,life:.6});
+    else if(f.k==='fat'){vfx.push({k:'word',x:f.x,y:GROUND-74,s:`脂 +${f.n}`,col:'#ffe63b',t:0,life:1.2});Snd.coin()}
+    else if(f.k==='gim'){banner={s:f.s,t:0,col:'#1f5b63'};shakeT=.35;Snd.thud()}
     else if(f.k==='heal')vfx.push({k:'word',x:f.x,y:GROUND-58,s:'+',col:'#8dff9c',t:0,life:.5});
     else if(f.k==='atk')vfx.push({...f,k:'atk',t:0,life:f.fx==='shout'?.7:f.fx==='shoot'?.5:.34});
     else if(f.k==='god'){vfx.push({k:'god',kind:f.kind,t:0,life:GOD_LIFE[f.kind]});Snd.god();queueGodSfx(f.kind,f.t)}
@@ -565,6 +607,9 @@ function drawAtkFx(c,f){
     case'line':c.lineWidth=1.6;c.strokeStyle='#f7f7f2';c.beginPath();c.moveTo(f.x+30,y-92);c.quadraticCurveTo((f.x+f.tx)/2,y-120,f.tx,y-14);c.stroke();break;
     case'net':c.lineWidth=1.6;c.strokeStyle='rgba(255,255,255,.85)';{const R=20+40*a;for(let i=-3;i<=3;i++){c.beginPath();c.moveTo(x+i*R/3,y-R);c.lineTo(x+i*R/3,y+10);c.stroke();c.beginPath();c.moveTo(x-R,y+i*R/4-20);c.lineTo(x+R,y+i*R/4-20);c.stroke()}}break;
     case'knife':c.lineWidth=4;c.strokeStyle='#eef6f8';c.beginPath();c.arc(f.tx,y-14,22,-1.2+a,1.4+a);c.stroke();break;
+    case'syrup':{const q=Math.min(1,a*1.4);for(let i=0;i<5;i++){A.E(c,f.x+dx*Math.min(1,q+i*.04),y-14-Math.sin(q*3.14)*34+i*2,4.5-i*.5,3.5-i*.4,'#c9772a',0,i?0:1.2)}if(a>.6){c.globalAlpha=(1-a)*2.4;A.E(c,f.tx,GROUND-4,26,6,'#c9772a',0,1.2);c.globalAlpha=1}break}
+    case'plank':for(let i=0;i<5;i++){const xx=f.x+22+i*9,yy=GROUND-10-(i%2)*8-a*12;c.globalAlpha=1-a;A.E(c,xx,yy,5,3,'#e9f7f4',0,0);c.globalAlpha=1}break;
+    case'splash':{c.globalAlpha=1-a;for(let i=0;i<9;i++){const q=i/8*3.14;A.E(c,f.tx+Math.cos(q)*(18+a*50),GROUND-6-Math.sin(q)*(20+a*60),6,5,'#dff5f7',0,i%3?0:1)}c.globalAlpha=1;break}
     case'swoop':c.lineWidth=3;c.strokeStyle='rgba(255,255,255,.7)';c.beginPath();c.moveTo(f.x,y-50);c.quadraticCurveTo(f.tx,y-60,f.tx,y);c.stroke();break;
     default:break;
   }
@@ -722,7 +767,7 @@ function syncHud(){
     el.classList.toggle('poor',poor);el.classList.toggle('cooling',waiting);
     el._bar.style.setProperty('--c',done);el._sec.textContent=Math.ceil(s.cd)});
   const st=$('btn-stom'),fl=$('btn-flood'),mx=B.stom>=STOM.max;
-  st.querySelector('b').textContent=`胃袋 Lv${B.stom}`;st.querySelector('small').textContent=mx?'最大':`${STOM.cost(B.stom)}で+${STOM.cap(B.stom+1)-STOM.cap(B.stom)}`;
+  st.querySelector('b').textContent=`胃袋 Lv${B.stom}`;st.querySelector('small').textContent=B.fast?'食べない':mx?'最大':`${STOM.cost(B.stom)}で+${STOM.cap(B.stom+1)-STOM.cap(B.stom)}`;
   st.style.setProperty('--c',mx?1:Math.min(1,B.money/STOM.cost(B.stom)));st.classList.toggle('ready',B.canUp());
   const gb=$('btn-god'),gc=B.god.cd,gs=B.seal>0?'封印中':gc>0?`あと${Math.floor(Math.ceil(gc)/60)}:${String(Math.ceil(gc)%60).padStart(2,'0')}`:'CMのあとで';
   if(gb._s!==gs){gb._s=gs;gb.querySelector('small').textContent=gs}gb.classList.toggle('ready',B.canGod()&&!paused);gb.disabled=gc>0||B.seal>0||!!B.over;
@@ -784,6 +829,6 @@ sndBtn.onclick=()=>{save.snd=!save.snd;persist();sndLabel();if(save.snd)Snd.wake
 for(const ev of['touchend','pointerup'])addEventListener(ev,()=>Snd.wake(),{passive:true});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&view==='battle'&&B&&!B.over&&!paused)togglePause()});
 show('title');
-window.__g={get B(){return B},deploy,startBattle,get save(){return save},setTab,show,Snd,quit,playEnding,get adT(){return adT},set et(v){et=v},get et(){return et},finish};
+window.__g={get B(){return B},migrate,portrait,deploy,startBattle,get save(){return save},setTab,show,Snd,quit,playEnding,get adT(){return adT},set et(v){et=v},get et(){return et},finish};
 requestAnimationFrame(frame);
 })();
