@@ -152,8 +152,8 @@ function renderRiver(p,lap){
     b.onclick=()=>{if(yk){save.ylap=i;persist();renderYukon()}else{save.lap=i;persist();renderMap()}};laps.appendChild(b)});
   const edOk=yk?cleared(YL):cleared(0);
   // ユーコン川タブでは、迷子になったいきさつ(導入)をいつでも見直せる
-  {const b=document.createElement('button');b.textContent='はじまりを見る';b.onclick=()=>{Snd.wake();playEnding(yk?'yintro':'open',()=>show('menu'))};laps.appendChild(b)}
-  if(edOk){const b=document.createElement('button');b.textContent='エンディングを見る';b.onclick=()=>{Snd.wake();playEnding(yk?YL:lap,()=>show('menu'))};laps.appendChild(b)}
+  {const b=document.createElement('button');b.className='sub';b.textContent='はじまりを見る';b.onclick=()=>{Snd.wake();playEnding(yk?'yintro':'open',()=>show('menu'))};laps.appendChild(b)}
+  if(edOk){const b=document.createElement('button');b.className='sub';b.textContent='エンディングを見る';b.onclick=()=>{Snd.wake();playEnding(yk?YL:lap,()=>show('menu'))};laps.appendChild(b)}
   if(laps.children.length>1||edOk)p.appendChild(laps);
   const riv=document.createElement('div');riv.className='river';let chShown=-1,nextEl=null;
   for(let i=SL.length-1;i>=0;i--){
@@ -262,14 +262,14 @@ function renderLane(){
   const gachaIds=lanePool(),got=gachaIds.filter(k=>save.own[k]).length;
   const h=document.createElement('h2');h.textContent='回転レーン';p.appendChild(h);
   const lb=document.createElement('div');lb.className='lanebox';const belt=document.createElement('div');belt.className='belt';belt.id='belt';
-  for(let i=0;i<12;i++){const pl=document.createElement('div');pl.className='plate'+(i%7===3?' k':i%3===1?' g':'');belt.appendChild(pl)}
+  for(let i=0;i<12;i++){const pl=document.createElement('div');pl.className='plate'+(i%7===3?' k':i%3===1?' g':'');pl.appendChild(document.createElement('i'));belt.appendChild(pl)}
   lb.appendChild(belt);p.appendChild(lb);
   const g=document.createElement('div');g.className='gacha';
   const left=document.createElement('div');
   left.innerHTML=`<p class="rates">流れてくる皿を1枚取ると、仲間が1組増えます。同じ仲間が出たらLvが1上がります。<br>白皿<b>65%</b>　金皿<b>28%</b>　黒皿<b>7%</b><br>集めた仲間<b>${got} / ${gachaIds.length}</b></p>`;
   const b=document.createElement('button');b.className='pop';b.id='btn-spin';b.textContent=`イクラ ${SPIN} で皿を取る`;b.disabled=save.ikura<SPIN;b.onclick=spin;left.appendChild(b);
   const rv=document.createElement('div');rv.id='reveal';rv.className='reveal';
-  if(lastPull)fillReveal(rv,lastPull);else{const m=document.createElement('p');m.textContent='まだ皿を取っていません。';rv.appendChild(m)}
+  if(lastPull)fillReveal(rv,lastPull);else{const q=document.createElement('div');q.className='plate q';q.appendChild(document.createElement('i'));const m=document.createElement('p');m.textContent='まだ皿を取っていません。';rv.append(q,m)}
   g.append(left,rv);p.appendChild(g);
 }
 function fillReveal(rv,r){
@@ -869,7 +869,7 @@ function frame(now){
 // 初めて遊ぶ人には、最初にオープニングを流す
 $('btn-start').onclick=()=>{Snd.wake();if(!save.opSeen){save.opSeen=true;persist();playEnding('open',()=>show('menu'))}else show('menu')};
 for(const b of document.querySelectorAll('.tabs button'))b.onclick=()=>setTab(b.dataset.tab);
-const sndBtn=$('btn-snd');const sndLabel=()=>{sndBtn.textContent=save.snd?'音':'消';sndBtn.setAttribute('aria-pressed',save.snd)};sndLabel();
+const sndBtn=$('btn-snd');const sndLabel=()=>{sndBtn.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/>${save.snd?'<path d="M16 8.5c1.6 1.9 1.6 5.1 0 7M18.6 6c3 3.4 3 8.6 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>':'<path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'}</svg>`;sndBtn.setAttribute('aria-pressed',save.snd);sndBtn.setAttribute('aria-label',save.snd?'音を消す':'音を出す')};sndLabel();
 sndBtn.onclick=()=>{save.snd=!save.snd;persist();sndLabel();if(save.snd)Snd.wake();else Snd.stop()};
 // iOSは指を離した時しか音を許可せず、アプリ切り替え後は音が止まるので毎回起こす
 for(const ev of['touchend','pointerup'])addEventListener(ev,()=>Snd.wake(),{passive:true});
