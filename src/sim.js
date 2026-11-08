@@ -88,7 +88,7 @@ king:{n:'マスノスケ',r:'UR',via:'gacha',cost:900,cd:22,hp:4600,atk:460,rate
   txt:'キングサーモンの日本での呼び名がマスノスケ。日本の鮭の王。王冠は自前。'},
 keiji:{n:'鮭児',r:'UR',via:'gacha',cost:700,cd:20,hp:980,atk:560,rate:1,wind:.3,range:62,sp:92,kb:3,w:40,crit:.5,fx:'bite',
   txt:'一万匹に一匹といわれる幻の若い鮭。脂のりが異常。'},
-osuke:{n:'鮭の大助',r:'UR',via:'gacha',cost:1500,cd:40,hp:6500,atk:1000,rate:7.2,wind:1,range:300,area:300,sp:14,kb:2,w:130,kbc:.5,fx:'shout',
+osuke:{n:'鮭の大助',r:'UR',via:'gacha',cost:1500,cd:40,hp:6500,atk:1300,rate:7.2,wind:1,range:300,area:300,sp:14,kb:2,w:130,kbc:.5,fx:'shout',
   txt:'東北の言い伝えの鮭の王。「鮭の大助、今のぼる」と叫ぶ。'},
 
 // ユーコン川で出会う仲間。yukon:1 はユーコン川がひらくまで回転レーンに流れてこない。yclearはユーコン川のステージ番号
