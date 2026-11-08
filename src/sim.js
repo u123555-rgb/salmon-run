@@ -21,6 +21,24 @@ kibori:{n:'おみやげの大群',uses:3,life:3.8},
 const GOD_ACT=[3.4,3.5,4.8],FLOE_V=700,SEAL=20,CLASH_T=4; // こちらの守護神が効いている秒数、流氷の速さ、封印の秒数、押し合いの秒数
 const CLASH_RATE={todo:4,amimoto:4.5,taisho:5,nushi:5.5,kibori:6}; // 押し合いでボスが1秒に押す回数。これより多く連打すると勝ち
 const RARE={N:'基本',R:'白皿',SR:'金皿',UR:'黒皿'};
+// 真のサーモン大遡上(トライアル版)。既存の川の15ステージを8年後の強さで、限られた群れでのぼりきる
+const TRIAL={lap:2,budget:10000,kinds:10,bonus:30000};
+// 名前。種類ごとに順番につける。足りなくなったら二世、三世…
+const NICK={shake:'白鮭',ikura:'イクラ',aramaki:'新巻',nigiri:'握り',abari:'炙り',oyako:'親子丼',toba:'とば',hanamagari:'鼻曲がり',gin:'銀鮭',karafuto:'樺太',sakura:'桜鱒',onigiri:'おにぎり',smoke:'スモーク',trout:'トラウト',flake:'フレーク',beni:'紅鮭',ishikari:'石狩',chanchan:'ちゃんちゃん',ashi:'脚',toki:'時鮭',king:'マスノスケ',keiji:'鮭児',osuke:'大助',can:'缶',bcroll:'ロール',maple:'メープル',candy:'キャンディ',steel:'スチール',cedar:'シーダー',yking:'キング'};
+const GIVEN='太郎 次郎 花子 三郎 桃子 四郎 梅子 五郎 菊子 六郎 松子 七郎 竹子 八郎 鶴子 九郎 亀子 十郎 百合子 小太郎'.split(' ');
+const KAN=n=>{const d='〇一二三四五六七八九';if(n<10)return d[n];const t=n/10|0,o=n%10;return(t>1?d[t]:'')+'十'+(o?d[o]:'')};
+// 名札ごとの見た目。「〜子」はリボン(2)、男の子の名前は、そのまま(0)とねじり鉢巻き(1)が交互。大助は代ごとに交互
+function accOf(id,i){
+  if(id==='osuke')return i%2;
+  const g=i%GIVEN.length;if(GIVEN[g].endsWith('子'))return 2;
+  return GIVEN.slice(0,g).filter(n=>!n.endsWith('子')).length%2;
+}
+function nameOf(id,i){
+  const base=NICK[id]||UNITS[id].n;
+  if(id==='osuke')return`${base}${KAN(i+1)}世`;
+  if(id==='ikura')return`イクラ三兄弟 ${GIVEN[i%GIVEN.length]}組${i>=GIVEN.length?KAN((i/GIVEN.length|0)+1)+'世':''}`;
+  return base+GIVEN[i%GIVEN.length]+(i>=GIVEN.length?KAN((i/GIVEN.length|0)+1)+'世':'');
+}
 
 const UNITS={
 shake:{n:'シロザケ',r:'N',via:'start',cost:50,cd:2,hp:150,atk:18,rate:1,wind:.3,range:34,sp:42,kb:3,w:40,fx:'bite',
@@ -70,7 +88,7 @@ king:{n:'マスノスケ',r:'UR',via:'gacha',cost:900,cd:22,hp:4600,atk:460,rate
   txt:'キングサーモンの日本での呼び名がマスノスケ。日本の鮭の王。王冠は自前。'},
 keiji:{n:'鮭児',r:'UR',via:'gacha',cost:700,cd:20,hp:980,atk:560,rate:1,wind:.3,range:62,sp:92,kb:3,w:40,crit:.5,fx:'bite',
   txt:'一万匹に一匹といわれる幻の若い鮭。脂のりが異常。'},
-osuke:{n:'鮭の大助',r:'UR',via:'gacha',cost:1500,cd:40,hp:6500,atk:1300,rate:3.6,wind:1,range:300,area:300,sp:14,kb:2,w:130,kbc:.5,fx:'shout',
+osuke:{n:'鮭の大助',r:'UR',via:'gacha',cost:1500,cd:40,hp:6500,atk:1000,rate:7.2,wind:1,range:300,area:300,sp:14,kb:2,w:130,kbc:.5,fx:'shout',
   txt:'東北の言い伝えの鮭の王。「鮭の大助、今のぼる」と叫ぶ。'},
 
 // ユーコン川で出会う仲間。yukon:1 はユーコン川がひらくまで回転レーンに流れてこない。yclearはユーコン川のステージ番号
@@ -209,7 +227,9 @@ class Battle{
     const eb=Math.round(s.base*this.mul);
     this.ebase={isBase:1,side:-1,x:74,w:96,hp:eb,max:eb,shake:0};
     this.money=0;this.stom=1;this.us=[];this.es=[];this.fx=[];this.queue=[];this.wave=null;
-    this.slots=cfg.slots.map(x=>({id:x.id,lv:x.lv,def:UNITS[x.id],cd:0}));
+    this.slots=cfg.slots.map(x=>({id:x.id,lv:x.lv,def:UNITS[x.id],cd:0,pool:x.pool?[...x.pool]:null}));
+    // 真の遡上。仲間の数がかぎられていて、やられた仲間は戻らない
+    this.trial=!!cfg.trial;this.fallen=[];
     this.flood={c:0,need:cfg.floodNeed,dmg:cfg.floodDmg};
     this.rules=s.rules.map(r=>({...r,on:false,cnt:0,next:0}));
     this.kills=0;this.lastHit=null;this.god={cd:0,act:0};
@@ -220,12 +240,14 @@ class Battle{
   }
   get income(){return this.fast?STOM.income(1)*this.cfg.income*.5:STOM.income(this.stom)*this.cfg.income}
   get cap(){return STOM.cap(this.stom)}
-  canDeploy(i){const s=this.slots[i];return s&&!this.over&&!this.clash&&s.cd<=0&&this.money>=s.def.cost&&this.us.length<40}
+  canDeploy(i){const s=this.slots[i];return s&&!this.over&&!this.clash&&s.cd<=0&&this.money>=s.def.cost&&this.us.length<40&&!(s.pool&&!s.pool.length)}
   deploy(i){
     if(!this.canDeploy(i))return false;
     const s=this.slots[i];this.money-=s.def.cost;s.cd=s.def.cd;
     const n=s.def.count||1;s.last=[];s.at=this.time;
-    for(let k=0;k<n;k++)s.last.push(this.addUnit(s.id,s.lv,this.pbase.x-44-k*16));
+    // 名札。同じ組で出た仲間(イクラ三兄弟)は同じ名札を持ち、全員やられた時に力尽きる
+    const crew=s.pool?[{s:i,nm:s.pool.shift()}]:null;
+    for(let k=0;k<n;k++){const u=this.addUnit(s.id,s.lv,this.pbase.x-44-k*16);if(crew){u.crew=crew;u.acc=accOf(s.id,crew[0].nm)}s.last.push(u)}
     this.fx.push({k:'spawn',x:this.pbase.x-44,side:1});
     return true;
   }
@@ -236,8 +258,11 @@ class Battle{
     const sa=this.slots[a],sb=this.slots[b];
     if(!this.canDeploy(b)||!sa.last||this.time-sa.at>.5||!sa.last.every(u=>u.alive))return false;
     this.money-=sb.def.cost;sb.cd=sb.def.cd;
+    const ca=sa.last[0].crew;
     for(const u of sa.last)u.alive=false;this.us=this.us.filter(u=>u.alive);sa.last=null;
-    const x=this.pbase.x-44;this.addUnit(fid,Math.round((sa.lv+sb.lv)/2),x);this.fx.push({k:'fuse',x,id:fid});
+    const x=this.pbase.x-44,f=this.addUnit(fid,Math.round((sa.lv+sb.lv)/2),x);this.fx.push({k:'fuse',x,id:fid});
+    // 合体した1体は、2匹ぶんの名札を持つ
+    if(sb.pool)f.crew=[...(ca||[]),{s:b,nm:sb.pool.shift()}];
     return true;
   }
   addUnit(id,lv,x){
@@ -305,7 +330,7 @@ class Battle{
     const allies=()=>this.us.filter(u=>u.alive&&u.state!=='air');
     // 前にいる仲間ほど敵に近い(xが小さい)。先頭からn体
     const front=n=>allies().sort((a,b)=>a.x-b.x).slice(0,n);
-    const hurt=(u,r)=>{this.fx.push({k:'hit',x:u.x,y:GROUND-34,big:1});this.damage(u,u.maxhp*r)};
+    const hurt=(u,r)=>{this.fx.push({k:'hit',x:u.x,y:GROUND-34,big:1});u.by=g.id;this.damage(u,u.maxhp*r)};
     const bx=e.x;
     switch(g.id){
       // 大トドが腹ばいで落ち、流氷が手前へすべる。当たった仲間は凍って止まる
@@ -313,7 +338,7 @@ class Battle{
         for(const u of allies())later(Math.max(0,u.x-bx)/FLOE_V,()=>{if(!u.alive)return;hurt(u,.25);if(u.alive){u.stun=4;u.ice=1}})});break;
       // 大きな網で前の仲間をすくい、群れのところまで放り投げる。落ちた時にダメージ
       case'amimoto':later(1.9,()=>{this.fx.push({k:'bghit',id:g.id});
-        for(const u of front(8)){u.state='air';u.air={t:0,d:1.1,x0:u.x,x1:this.pbase.x-44}}});break;
+        for(const u of front(8)){u.state='air';u.by=g.id;u.air={t:0,d:1.1,x0:u.x,x1:this.pbase.x-44}}});break;
       // すし皿がつぎつぎ飛んできて、前の仲間に当たる
       case'taisho':for(let i=0;i<4;i++)later(1.3+i*.4,()=>{this.fx.push({k:'bghit',id:g.id});for(const u of front(6))hurt(u,.18)});break;
       // 水の柱と竜神が手前へ進みながら3回体当たり。そのたびに押し返す
@@ -384,7 +409,11 @@ class Battle{
     this.us=this.us.filter(e=>e.alive);this.es=this.es.filter(e=>e.alive);
     if(this.ebase.hp<=0){this.ebase.hp=0;this.over='win'}
     else if(this.pbase.hp<=0){this.pbase.hp=0;this.over='lose'}
+    // 真の遡上で、出せる仲間も川にいる仲間もいなくなったら負け
+    else if(this.trial&&!this.us.length&&this.slots.every(s=>!s.pool.length)){this.over='lose';this.wiped=true}
   }
+  // 川にいて生きている名札。勝った時に群れへ戻る
+  survivors(){const m=new Set();for(const u of this.us)if(u.alive&&u.crew)for(const c of u.crew)m.add(c);return[...m]}
   // ステージのしかけ
   gimmick(){
     const allies=this.us.filter(u=>u.alive&&u.state!=='air');
@@ -470,6 +499,7 @@ class Battle{
     const crit=d.crit&&this.rand()<d.crit;
     if(crit)dmg*=2;
     this.fx.push({k:crit?'crit':'hit',x:t.x,y:GROUND-30-(t.def.fly||0),big:dmg>400});
+    if(a.side<0)t.by=a.id;
     this.damage(t,dmg);
     if(!t.alive)return;
     if(d.slow&&this.rand()<d.slow.p)t.slow=d.slow.t;
@@ -492,10 +522,12 @@ class Battle{
   knock(t,quiet){if(!t.alive)return;t.state='kb';t.timer=KB_T;if(!quiet)this.fx.push({k:'kb',x:t.x,y:GROUND-40})}
   kill(t){
     t.alive=false;this.fx.push({k:'die',e:t});
+    // 名札の仲間が全員やられたら、その仲間は力尽きる
+    if(t.crew)for(const c of t.crew)if(!this.us.some(u=>u.alive&&u.crew&&u.crew.includes(c))){const s=this.slots[c.s];this.fallen.push(c);this.lastFall=t.by;this.fx.push({k:'fallen',s:c.s,id:s.id,nm:c.nm,by:t.by})}
     if(t.side<0){this.kills++;this.money=Math.min(this.cap,this.money+t.def.gold*(this.us.some(u=>u.alive&&u.def.goldUp)?1.5:1))}
     else{if(t.def.fat){this.money=Math.min(this.cap,this.money+t.def.fat);this.fx.push({k:'fat',x:t.x,n:t.def.fat})}}
     if(t.side>0&&t.def.onDeath){const o=t.def.onDeath;for(let i=0;i<o.n;i++){const u=this.addUnit(o.id,t.lv,t.x+(i-3)*14);u.state='move'}}
   }
 }
-return{YUKON,stagesOf,VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,BGOD,FLOE_V,CLASH_T,CLASH_RATE,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle};
+return{TRIAL,nameOf,accOf,YUKON,stagesOf,VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,BGOD,FLOE_V,CLASH_T,CLASH_RATE,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle};
 })();

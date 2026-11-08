@@ -1,14 +1,14 @@
 (()=>{
 'use strict';
 const G=window.SALMON,A=window.SALMON_ART;
-const{YUKON,stagesOf,VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,BGOD,FLOE_V,CLASH_T,CLASH_RATE,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle}=G;
+const{TRIAL,nameOf,accOf,YUKON,stagesOf,VH,WATER_Y,GROUND,GOD_HITS,GOD_SWEEP,BGOD,FLOE_V,CLASH_T,CLASH_RATE,TRAIT,LAPS,RARE,UNITS,FUSE,ENEMIES,CHAPTERS,STAGES,STOM,META,lvMul,lvCost,metaCost,battleCfg,Battle}=G;
 const $=id=>document.getElementById(id);
 const fmt=n=>Math.floor(n).toLocaleString('ja-JP');
 const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const KEY='salmon-run-v1',SPIN=200,MAXLV=30;
 // ユーコン川の1回目。ylapはユーコン川タブで選んでいる周回
 const YL=LAPS.findIndex(l=>l.yukon);
-const fresh=()=>({ikura:300,own:{shake:1,ikura:1,aramaki:1},team:['shake','ikura','aramaki'],prog:LAPS.map(()=>0),meta:{wall:0,flood:0,stom:0},lap:0,ylap:YL,opSeen:false,tip:false,snd:true,fuse:[]});
+const fresh=()=>({ikura:300,own:{shake:1,ikura:1,aramaki:1},team:['shake','ikura','aramaki'],prog:LAPS.map(()=>0),meta:{wall:0,flood:0,stom:0},lap:0,ylap:YL,opSeen:false,tip:false,snd:true,fuse:[],ntab:'yukon',trial:null,tdraft:{},tbest:0,tclear:0});
 // 更新で項目が増減しても、古いセーブを今の形に直して読む
 function migrate(s){
   const f=fresh(),own={};
@@ -17,7 +17,15 @@ function migrate(s){
   const team=(Array.isArray(s.team)?s.team:[]).filter(k=>own[k]);
   return{...f,...s,own,team:team.length?team:Object.keys(own).slice(0,3),
     prog:f.prog.map((_,i)=>Math.min(stagesOf(i).length,Math.max(0,((s.prog||[])[i])|0))),
-    meta:{...f.meta,...s.meta},fuse:(Array.isArray(s.fuse)?s.fuse:[]).filter(k=>FUSE[k]),lap:(l=>LAPS[l].yukon?0:l)(Math.min(LAPS.length-1,Math.max(0,s.lap|0))),ylap:LAPS[s.ylap]&&LAPS[s.ylap].yukon?s.ylap:YL,opSeen:s.opSeen??true};
+    meta:{...f.meta,...s.meta},fuse:(Array.isArray(s.fuse)?s.fuse:[]).filter(k=>FUSE[k]),lap:(l=>LAPS[l].yukon?0:l)(Math.min(LAPS.length-1,Math.max(0,s.lap|0))),ylap:LAPS[s.ylap]&&LAPS[s.ylap].yukon?s.ylap:YL,opSeen:s.opSeen??true,
+    ntab:s.ntab==='trial'?'trial':'yukon',trial:trialOk(s.trial,own),tbest:Math.max(0,s.tbest|0),tclear:Math.max(0,s.tclear|0),
+    tdraft:Object.fromEntries(Object.entries(s.tdraft&&typeof s.tdraft==='object'?s.tdraft:{}).filter(([k,v])=>own[k]&&v>0).map(([k,v])=>[k,v|0]))};
+}
+// 真の遡上の途中のセーブ。おかしなところがあれば旅はなかったことにする
+function trialOk(t,own){
+  if(!t||!Array.isArray(t.team)||!t.team.length||!t.team.every(x=>x&&UNITS[x.id]&&own[x.id]&&Array.isArray(x.alive)))return null;
+  return{si:Math.min(STAGES.length-1,Math.max(0,t.si|0)),fallen:Math.max(0,t.fallen|0),gain:Math.max(0,t.gain|0),
+    team:t.team.map(x=>({id:x.id,n:Math.max(0,x.n|0),alive:[...new Set(x.alive.filter(n=>Number.isInteger(n)&&n>=0))].sort((a,b)=>a-b)}))};
 }
 let save=fresh();
 try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.own)save=migrate(s)}catch(e){}
@@ -101,6 +109,8 @@ const Snd={ac:null,timer:null,step:0,mode:'normal',
   tap(){this.tone(620+Math.random()*160,.05,'square',.02)},
   fuse(){[392,523,659,784,1046].forEach((f,i)=>this.tone(f,.22,'square',.03,i*.06));this.noise(.3,.08,2000)},
   coin(){this.tone(880,.06,'square',.02);this.tone(1320,.09,'square',.02,.06)},
+  // 真の遡上で仲間が力尽きた時。小さく下がる2音
+  fallen(){this.tone(523,.16,'triangle',.035);this.tone(392,.32,'triangle',.035,.14)},
 };
 
 /* 立ち絵 */
@@ -123,6 +133,19 @@ function portrait(id,px,o={}){
   return cv;
 }
 
+// 顔のアップ。顔の中心(x,y)と、切り取る半径r。キャラの絵の座標で
+const FACE={shake:[-16,-34,20],ikura:[-1,-12,15],aramaki:[-1,-18,20],nigiri:[-14,-34,20],abari:[-14,-34,20],oyako:[-3,-22,22],toba:[1,-58,16],hanamagari:[-22,-40,26],
+  gin:[-16,-34,18],karafuto:[-18,-34,22],sakura:[-16,-34,20],onigiri:[0,-20,24],smoke:[-4,-32,20],trout:[-16,-34,20],flake:[0,-30,20],beni:[-17,-35,20],ishikari:[-1,-24,22],
+  chanchan:[-16,-30,20],ashi:[-15,-63,20],toki:[-18,-35,20],king:[-32,-57,34],keiji:[-14,-35,17],osuke:[-52,-80,52],can:[0,-34,20],bcroll:[0,-21,22],maple:[-14,-29,18],
+  candy:[-2,-27,16],steel:[-20,-34,22],cedar:[-15,-28,18],yking:[-34,-60,36]};
+const faceCache={};
+function face(id,px,acc=0){
+  const key=id+px+'_'+acc;
+  if(!faceCache[key]){const S=2,cv=document.createElement('canvas');cv.width=cv.height=px*S;const c=cv.getContext('2d'),[x,y,r]=FACE[id]||[0,-30,26],k=px*S/(r*2);
+    c.translate(px*S/2,px*S/2);c.scale(k,k);c.translate(-x,-y);A.drawActor(c,id,{t:.7,sw:0,atk:0,roll:0,acc});faceCache[key]=cv}
+  const src=faceCache[key],cv=document.createElement('canvas');cv.width=src.width;cv.height=src.height;cv.getContext('2d').drawImage(src,0,0);return cv;
+}
+
 /* 画面切り替え */
 let view='title',tab='map',sel='shake';
 function show(v){view=v;for(const k of['title','menu','battle','ending'])$('v-'+k).hidden=k!==v;if(v==='menu')setTab(tab);if(v==='battle')fit()}
@@ -134,15 +157,87 @@ let toastT;function toast(s){const t=$('toast');t.textContent=s;t.hidden=false;c
 /* マップ */
 function enemiesOf(s){const seen=[];for(const r of s.rules)if(!seen.includes(r.e))seen.push(r.e);return seen}
 function renderMap(){renderRiver($('p-map'),save.lap)}
-// ユーコン川タブ。ひらく前は鍵つきで見せ、初めて開いた時は迷子になったいきさつを流す
+// 新ステージタブ。ユーコン編と真のサーモン大遡上(トライアル版)を切り替える。ひらく前は鍵つきで見せる
 function renderYukon(){
-  const p=$('p-yukon');
-  if(!yukonOpen()){p.innerHTML='';const b=document.createElement('div');b.className='ylock';
-    b.innerHTML='<h2>ユーコン川</h2><p>海の向こうの大きな川。生まれた川まで、3,000km。</p>';b.appendChild(portrait('yking',120,{dark:1}));
+  const p=$('p-yukon');p.innerHTML='';
+  if(!yukonOpen()){const b=document.createElement('div');b.className='ylock';
+    b.innerHTML='<h2>新ステージ</h2><p>海の向こうのユーコン川と、真のサーモン大遡上。</p>';b.appendChild(portrait('yking',120,{dark:1}));
     const n=document.createElement('p');n.textContent='「8年後の遡上」をクリアするとひらく';b.appendChild(n);p.appendChild(b);return}
+  const sw=document.createElement('div');sw.className='modes';
+  for(const[k,t,sub,id]of[['yukon','ユーコン編','海の向こうの川 3,000km','yking'],['trial','真のサーモン大遡上','トライアル版','osuke']]){
+    const b=document.createElement('button');b.className='mode m-'+k;b.setAttribute('aria-pressed',save.ntab===k);b.appendChild(portrait(id,56));
+    const tx=document.createElement('span');tx.innerHTML=`<b>${t}</b><small>${sub}</small>`;b.appendChild(tx);
+    b.onclick=()=>{if(save.ntab===k)return;save.ntab=k;persist();renderYukon()};sw.appendChild(b)}
+  p.appendChild(sw);
+  const body=document.createElement('div');p.appendChild(body);
+  if(save.ntab==='trial'){renderTrial(body);return}
+  // ユーコン編を初めて開いた時は、迷子になったいきさつを流す
   if(!save.yIntro){save.yIntro=true;persist();Snd.wake();playEnding('yintro',()=>show('menu'));return}
-  renderRiver(p,lapOpen(save.ylap)?save.ylap:YL);
-  const n=document.createElement('p');n.className='ynote';n.textContent='ユーコン川では、オキアミがあまりたまらない。満タンから大事に使おう。';p.insertBefore(n,p.querySelector('.river'));
+  renderRiver(body,lapOpen(save.ylap)?save.ylap:YL);
+  const n=document.createElement('p');n.className='ynote';n.textContent='ユーコン川では、オキアミがあまりたまらない。満タンから大事に使おう。';body.insertBefore(n,body.querySelector('.river'));
+}
+/* 真のサーモン大遡上(トライアル版) */
+const tCost=d=>Object.entries(d).reduce((a,[k,n])=>a+UNITS[k].cost*n,0);
+const tLeft=t=>t.team.reduce((a,x)=>a+x.alive.length,0);
+function renderTrial(p){
+  const t=save.trial,head=document.createElement('div');head.className='tr-head';
+  head.innerHTML=`<h2>真のサーモン大遡上<span class="tag">トライアル版</span></h2>`+
+    (t?'':`<ul><li>コスト${fmt(TRIAL.budget)}まで、${TRIAL.kinds}種類までの群れをつくる。</li><li>生まれた川の15ステージを、つづけてのぼる。敵は8年後の強さ。</li><li>やられた仲間は、もう戻らない。生きて帰った仲間は、次も泳げる。</li></ul>`)+
+    (save.tbest||save.tclear?`<p class="best">${save.tclear?`達成 ${save.tclear}回 ・ `:''}これまでの最高 ${save.tbest} / ${STAGES.length} ステージ</p>`:'');
+  p.appendChild(head);
+  if(t)renderRun(p,t);else renderDraft(p);
+}
+function renderDraft(p){
+  const d=save.tdraft;for(const k of Object.keys(d))if(!save.own[k]||!(d[k]>0))delete d[k];
+  const used=tCost(d),kinds=Object.keys(d).length,room=TRIAL.budget-used,count=Object.values(d).reduce((a,n)=>a+n,0);
+  const bud=document.createElement('div');bud.className='budget';
+  bud.innerHTML=`<div class="bt"><span>コスト <b>${fmt(used)}</b><small> / ${fmt(TRIAL.budget)}</small></span><span>種類 <b>${kinds}</b><small> / ${TRIAL.kinds}</small></span><span><b>${fmt(count)}</b><small>匹</small></span></div><div class="bar"><i style="--c:${Math.min(1,used/TRIAL.budget)}"></i></div>`;
+  p.appendChild(bud);
+  const list=document.createElement('div');list.className='tr-list';
+  for(const id of Object.keys(UNITS).filter(k=>save.own[k])){
+    const u=UNITS[id],n=d[id]||0,row=document.createElement('div');row.className=`tr-row r-${u.r}`+(n?' on':'');
+    row.appendChild(portrait(id,48));
+    const info=document.createElement('div');info.className='tr-info';info.innerHTML=`<b>${u.n}</b><small>Lv${save.own[id]} ・ 1匹 ${u.cost}${u.count?`(${u.count}体で出る)`:''}</small>`;row.appendChild(info);
+    const ctl=document.createElement('div'),fit=(n||kinds<TRIAL.kinds)?Math.floor(room/u.cost):0;ctl.className='tr-ctl';
+    const mk=(lab,dv,aria)=>{const b=document.createElement('button');b.textContent=lab;b.setAttribute('aria-label',`${u.n}を${aria}`);b.disabled=!dv;
+      b.onclick=()=>{const v=n+dv;if(v>0)d[id]=v;else delete d[id];persist();Snd.tap();renderYukon()};return b};
+    const num=document.createElement('span');num.className='n';num.textContent=n;
+    ctl.append(mk('−10',-Math.min(10,n),'10匹へらす'),mk('−',-Math.min(1,n),'1匹へらす'),num,mk('+',Math.min(1,fit),'1匹ふやす'),mk('+10',Math.min(10,fit),'10匹ふやす'));
+    row.appendChild(ctl);list.appendChild(row)}
+  p.appendChild(list);
+  const foot=document.createElement('div');foot.className='tr-foot';
+  const clr=document.createElement('button');clr.className='pop ghost';clr.textContent='ぜんぶ0にする';clr.disabled=!kinds;clr.onclick=()=>{save.tdraft={};persist();renderYukon()};
+  const go=document.createElement('button');go.className='pop';go.textContent='この群れで旅に出る';go.disabled=!kinds;
+  go.onclick=()=>{save.trial={si:0,fallen:0,gain:0,team:Object.entries(d).map(([id,n])=>({id,n,alive:[...Array(n).keys()]}))};persist();Snd.wake();startTrial()};
+  foot.append(clr,go);p.appendChild(foot);
+}
+function renderRun(p,t){
+  const s=STAGES[t.si];
+  const prog=document.createElement('div');prog.className='tr-prog';prog.setAttribute('aria-label',`${t.si}ステージのぼった`);
+  STAGES.forEach((_,i)=>{const d=document.createElement('i');d.className=i<t.si?'done':i===t.si?'next':'';prog.appendChild(d)});
+  p.appendChild(prog);
+  const nx=document.createElement('div');nx.className='tr-next';
+  const km=document.createElement('div');km.className='km';km.innerHTML=`${s.km}<small>km</small>`;
+  const main=document.createElement('div');main.className='st-main';main.innerHTML=`<div class="tr-step">${t.si+1}ステージ目 / ${STAGES.length}</div><div class="st-name">${s.n}</div>`;
+  const sub=document.createElement('div');sub.className='st-sub';for(const e of enemiesOf(s))sub.appendChild(portrait(e,28,{flip:1}));main.appendChild(sub);
+  const b=document.createElement('button');b.className='pop go';b.textContent='遡上';b.onclick=()=>{Snd.wake();startTrial()};
+  nx.append(km,main,b);p.appendChild(nx);
+  const h=document.createElement('h3');h.className='gh';h.textContent=`群れ  のこり ${fmt(tLeft(t))}匹`;p.appendChild(h);
+  const team=document.createElement('div');team.className='tr-team';
+  for(const x of t.team){const el=document.createElement('div'),n=x.alive.length;el.className='tm'+(n?'':' gone');
+    el.appendChild(portrait(x.id,56,{dark:!n}));el.insertAdjacentHTML('beforeend',`<b>${n}<small>/${x.n}</small></b><span>${UNITS[x.id].n}</span>`);team.appendChild(el)}
+  p.appendChild(team);
+  const foot=document.createElement('div');foot.className='tr-foot';
+  const f=document.createElement('p');f.className='fallen';f.textContent=`力尽きた仲間 ${fmt(t.fallen)}匹`;
+  const g=document.createElement('button');g.className='pop ghost';g.textContent='旅をあきらめる';
+  g.onclick=()=>{if(!g.dataset.k){g.dataset.k=1;g.textContent='本当にあきらめる?';return}
+    save.tbest=Math.max(save.tbest,t.si);save.trial=null;persist();renderYukon()};
+  foot.append(f,g);p.appendChild(foot);
+}
+function startTrial(){
+  const t=save.trial;if(!t)return;
+  const cfg=battleCfg(save);cfg.trial=1;cfg.slots=t.team.map(x=>({id:x.id,lv:save.own[x.id]||1,pool:x.alive}));
+  startBattle(t.si,TRIAL.lap,cfg);
 }
 function renderRiver(p,lap){
   const prog=save.prog[lap],SL=stagesOf(lap),yk=!!LAPS[lap].yukon;p.innerHTML='';
@@ -306,13 +401,14 @@ function fit(){
 }
 function clampCam(){if(B)cam=Math.max(0,Math.min(B.L-vw,cam))}
 new ResizeObserver(fit).observe(field);
-function startBattle(si,lap){
-  B=new Battle(si,lap,battleCfg(save));bg=A.makeBackground(B.s.ch,B.L,VH,WATER_Y,GROUND,CHAPTERS);
+function startBattle(si,lap,cfg){
+  B=new Battle(si,lap,cfg||battleCfg(save));obitQ=[];obitT=0;$('obit').innerHTML='';$('sortie').innerHTML='';bg=A.makeBackground(B.s.ch,B.L,VH,WATER_Y,GROUND,CHAPTERS);
   scene=null;adT=-1;godSfx=[];clashT=-1;$('clash').hidden=true;$('ad').hidden=true;Snd.setBgm('normal');vfx=[];slotCache=[];paused=false;userPan=0;endQueued=false;banner=null;speed=1;$('btn-speed').textContent='×1';$('over').hidden=true;
-  $('hud-stage').textContent=`${LAPS[lap].hard?'ハード ':''}${fmt(B.s.km)}km ${B.s.n}`;
+  $('hud-stage').textContent=`${B.trial?'真の遡上 ':LAPS[lap].hard?'ハード ':''}${fmt(B.s.km)}km ${B.s.n}`;
   buildSlots();show('battle');fit();cam=B.L-vw;clampCam();
   const tip=$('tip');
   if(!save.tip){tip.hidden=false;tip.textContent='下の値札を押すと仲間が出ます。オキアミは右上の胃袋にたまり、満腹になると止まります。左下で胃袋を広げられます。左の敵の拠点を壊せば勝ちです。';tip.onclick=()=>{tip.hidden=true};save.tip=true;persist();setTimeout(()=>{tip.hidden=true},9000)}
+  else if(B.trial&&!save.tTip){tip.hidden=false;tip.textContent='値札の右上は、残りの数です。やられた仲間は戻りません。生きている仲間は、勝つと群れに帰ってきます。';tip.onclick=()=>{tip.hidden=true};save.tTip=true;persist();setTimeout(()=>{tip.hidden=true},9000)}
   else if(B.fast&&!save.yTip){tip.hidden=false;tip.textContent='川に入った鮭は、なにも食べずに泳ぎ続けます。胃袋は最大の2,600まで満タンで始まりますが、オキアミは少ししかたまりません。敵を倒すとオキアミが増えます。';tip.onclick=()=>{tip.hidden=true};save.yTip=true;persist();setTimeout(()=>{tip.hidden=true},11000)}
   else tip.hidden=true;
 }
@@ -326,7 +422,8 @@ function buildSlots(){
     const wait=document.createElement('span');wait.className='wait';wait.innerHTML='<em class="sec"></em><span class="bar"><i></i></span>';
     b._sec=wait.querySelector('.sec');b._bar=wait.querySelector('.bar i');
     const k=document.createElement('kbd');k.textContent=(i+1)%10;
-    b.append(wait,pr,k);press(b,()=>deploy(i));b.onanimationend=()=>b.classList.remove('flash');w.appendChild(b)});
+    b.append(wait,pr,k);
+    if(s.pool){const l=document.createElement('span');l.className='left';b._left=l;b.appendChild(l)}press(b,()=>deploy(i));b.onanimationend=()=>b.classList.remove('flash');w.appendChild(b)});
   for(let i=B.slots.length;i<10;i++){const b=document.createElement('div');b.className='slot empty';w.appendChild(b)}
 }
 // 2つの値札がほぼ同時(FUSE_MS以内)に押され、その2体が合体できる組み合わせなら合体させる。隠し要素
@@ -335,7 +432,7 @@ function deploy(i){
   if(!B||paused)return;
   const now=performance.now(),pv=lastPress;
   if(pv.i>=0&&pv.i!==i&&now-pv.t<FUSE_MS){const fid=B.fuseOf(pv.i,i);if(fid&&B.fuse(pv.i,i,fid)){lastPress={i:-1,t:0};return}}
-  if(B.deploy(i)){Snd.spawn();lastPress={i,t:now}}
+  if(B.deploy(i)){Snd.spawn();lastPress={i,t:now};if(B.trial)sortie(i)}
 }
 function upStom(){if(B&&!paused&&B.upStom()){Snd.coin();const m=$('hud-money');m.classList.remove('grow');void m.offsetWidth;m.classList.add('grow')}}
 // 守護神は広告を見てから呼ぶ。今の広告は仮で、ゲーム自身の宣伝を5秒流す
@@ -375,7 +472,9 @@ $('btn-speed').onclick=()=>{speed=speed===1?2:1;$('btn-speed').textContent='×'+
 $('btn-pause').onclick=()=>togglePause();
 function togglePause(){
   if(!B||B.over)return;paused=!paused;
-  if(paused)overlay(`<h2>一時停止</h2><p>${B.s.n}</p><div class="row"><button class="pop" id="o-resume">続ける</button><button class="pop ghost" id="o-quit">川をおりる</button></div>`,{'o-resume':togglePause,'o-quit':quit});
+  if(paused&&B.trial)overlay(`<h2>一時停止</h2><p>${B.s.n}</p><p class="note">撤退すると、このステージは最初からになる。力尽きた仲間は戻らない。</p><div class="row"><button class="pop" id="o-resume">続ける</button><button class="pop ghost" id="o-quit">撤退する</button><button class="pop ghost" id="o-give">あきらめる</button></div>`,
+    {'o-resume':togglePause,'o-quit':quit,'o-give':()=>{const g=$('o-give');if(!g.dataset.k){g.dataset.k=1;g.textContent='本当にあきらめる?';return}paused=false;$('over').hidden=true;B.gaveUp=true;B.over='lose'}});
+  else if(paused)overlay(`<h2>一時停止</h2><p>${B.s.n}</p><div class="row"><button class="pop" id="o-resume">続ける</button><button class="pop ghost" id="o-quit">川をおりる</button></div>`,{'o-resume':togglePause,'o-quit':quit});
   else $('over').hidden=true;
 }
 function quit(){B=null;scene=null;godSfx=[];clashT=-1;$('clash').hidden=true;paused=false;Snd.setBgm('normal');$('over').hidden=true;show('menu')}
@@ -408,6 +507,7 @@ function loseCanvas(id){
 }
 function finish(){
   const b=B;Snd.setBgm('normal');
+  if(b.trial)return finishTrial(b);
   if(b.over==='win'){
     Snd.win();
     const first=b.si===save.prog[b.lap],gain=reward(b.si,b.lap,first);save.ikura+=gain;let unlocked=null;
@@ -422,7 +522,7 @@ function finish(){
     // ユーコン川の1回目をクリアすると、ユーコン川の4年後がひらく
     const ynext=last&&LAPS[b.lap].yukon?LAPS.findIndex(l=>l.yukon&&l.need===b.lap):-1;
     if(ynext>=0){html+=`<p>ユーコン川の「${LAPS[ynext].btn}」がひらいた。</p>`;save.ylap=ynext;persist()}
-    if(ending&&LAPS[b.lap+1]&&LAPS[b.lap+1].hard)html+=`<p>「ユーコン川」タブがひらいた。</p>`;
+    if(ending&&LAPS[b.lap+1]&&LAPS[b.lap+1].hard)html+=`<p>「新ステージ」タブがひらいた。ユーコン川と、真のサーモン大遡上が遊べる。</p>`;
     if(unlocked){html+=`<p>${UNITS[unlocked].n}が仲間になった。</p>`;extra=portrait(unlocked,110)}
     html+=`<div class="row"><button class="pop" id="o-next">川へもどる</button></div>`;
     if(ending){save.lap=b.lap+1;persist()}
@@ -433,6 +533,32 @@ function finish(){
     const boss=b.es.find(e=>e.def.boss&&LOSE[e.id]),who=boss?boss.id:b.lastHit,L=LOSE[who];
     const body=L?L.p:'鮭の群れがちりぢりになった。';
     overlay(`<h2>${L?L.h:'流された'}</h2><p>${body}慰めのイクラ ${fmt(gain)} をもらった。いけすで仲間を強くして、もう一度。</p><div class="row"><button class="pop" id="o-again">もう一度</button><button class="pop ghost" id="o-next">川へもどる</button></div>`,{'o-next':quit,'o-again':()=>startBattle(b.si,b.lap)},L?loseCanvas(who):null,!!L);
+  }
+}
+
+// 真の遡上の結果。勝てば次のステージへ、負ければ旅はそこで終わる
+function finishTrial(b){
+  const t=save.trial,s=b.s;
+  if(!t){overlay(`<h2>旅は終わっている</h2><div class="row"><button class="pop" id="o-next">川へもどる</button></div>`,{'o-next':quit});return}
+  if(b.over==='win'){
+    Snd.win();const gain=reward(b.si,TRIAL.lap,false);save.ikura+=gain;t.gain+=gain;t.si=b.si+1;save.tbest=Math.max(save.tbest,t.si);
+    const back=b.survivors().length,dead=b.fallen.length;
+    if(t.si>=STAGES.length){
+      save.ikura+=TRIAL.bonus;save.tclear++;const alive=tLeft(t),fallen=t.fallen;save.trial=null;persist();
+      const html=`<h2>真の遡上、達成</h2><div class="prize">イクラ +${fmt(gain+TRIAL.bonus)}</div><p>かぎられた群れで、268kmをのぼりきった。</p><p class="tr-sum">生きて帰った仲間 <b>${fmt(alive)}</b>匹 ・ 力尽きた仲間 <b>${fmt(fallen)}</b>匹</p><div class="row"><button class="pop" id="o-next">川へもどる</button></div>`;
+      playEnding(0,()=>{show('battle');overlay(html,{'o-next':quit})});return}
+    persist();
+    const names=b.fallen.map(c=>nameOf(b.slots[c.s].id,c.nm)),nx=STAGES[t.si];
+    let html=`<h2>遡上成功</h2><div class="prize">イクラ +${fmt(gain)}</div><p class="tr-sum">帰ってきた仲間 <b>${fmt(back)}</b>匹 ・ 力尽きた仲間 <b>${fmt(dead)}</b>匹</p>`;
+    if(names.length)html+=`<p class="note">${names.slice(0,3).join('、')}${names.length>3?` ほか${names.length-3}匹`:''}</p>`;
+    html+=`<p>つぎは ${nx.km}km「${nx.n}」。のこり ${fmt(tLeft(t))}匹。</p><div class="row"><button class="pop" id="o-go">つぎへ</button><button class="pop ghost" id="o-next">群れを見る</button></div>`;
+    overlay(html,{'o-go':startTrial,'o-next':quit});
+  }else{
+    Snd.lose();const gain=Math.round(reward(b.si,TRIAL.lap,false)*.2);save.ikura+=gain;
+    const total=t.gain+gain,done=t.si;save.tbest=Math.max(save.tbest,done);save.trial=null;persist();
+    const boss=b.es.find(e=>e.def.boss&&LOSE[e.id]),who=b.gaveUp?null:boss?boss.id:b.wiped?b.lastFall:b.lastHit,L=LOSE[who];
+    const h=b.gaveUp?'旅をあきらめた':b.wiped?'群れは力尽きた':L?L.h:'流された';
+    overlay(`<h2>${h}</h2>${L&&!b.wiped?`<p>${L.p}</p>`:''}<p>たどりついたのは ${s.km}km「${s.n}」。ここで旅は終わった。</p><p class="tr-sum">のぼったステージ <b>${done}</b> / ${STAGES.length} ・ この旅のイクラ <b>${fmt(total)}</b></p><div class="row"><button class="pop" id="o-next">川へもどる</button></div>`,{'o-next':quit},L?loseCanvas(who):null,!!L);
   }
 }
 
@@ -470,6 +596,7 @@ addEventListener('keydown',e=>{
 function drainFx(){
   for(const f of B.fx){
     if(f.k==='die')vfx.push({k:'die',e:f.e,t:0,life:f.e.side>0?1.8:.7});
+    else if(f.k==='fallen')onFallen(f);
     else if(f.k==='hit'){vfx.push({k:'hit',x:f.x,y:f.y,big:f.big,t:0,life:.22});if(Math.random()<.3)Snd.hit()}
     else if(f.k==='crit'){vfx.push({k:'word',x:f.x,y:f.y-16,s:'トロ!',col:'#ff5a2b',t:0,life:.7});Snd.big()}
     else if(f.k==='kb'){vfx.push({k:'word',x:f.x,y:f.y-20,s:'ドン',col:'#fff',t:0,life:.4})}
@@ -628,7 +755,7 @@ function drawOne(c,e,t){
   c.translate(-atk*(d.w>=90?4:7),0);
   if(e.state==='kb')c.rotate(.28);
   if(e.hurt>0&&((clock*40)|0)%2)c.globalAlpha=.55;
-  A.drawActor(c,e.id,{t:e.anim+e.seed*5,sw:Math.sin(e.walk),atk,roll:e.walk*1.7,lunge:e.lunge});
+  A.drawActor(c,e.id,{t:e.anim+e.seed*5,sw:Math.sin(e.walk),atk,roll:e.walk*1.7,lunge:e.lunge,acc:e.acc});
   c.restore();
   if(e.stun>0&&e.ice){c.save();c.globalAlpha=.55;c.fillStyle='#c9f1ff';c.fillRect(e.x-d.w*.6,GROUND+e.lane-58,d.w*1.2,60);c.globalAlpha=1;c.lineWidth=2;c.strokeStyle='#eafcff';c.strokeRect(e.x-d.w*.6,GROUND+e.lane-58,d.w*1.2,60);A.line(c,[[e.x-d.w*.4,GROUND+e.lane-50],[e.x-d.w*.1,GROUND+e.lane-30]],2,'#fff');c.restore()}
   else if(e.stun>0)word(c,'時',e.x,GROUND-62,'#fff7d6',16);
@@ -639,7 +766,7 @@ function drawDead(c,f){
   const e=f.e,a=f.t/f.life;
   if(e.side>0){
     c.save();c.translate(e.x,GROUND+e.lane-a*(GROUND-WATER_Y+4));c.globalAlpha=Math.min(1,(1-a)*2.4);
-    c.rotate(Math.min(1,a*4)*3.14);c.translate(0,20);A.drawActor(c,e.id,{t:0,sw:0,atk:0,roll:0});c.restore();
+    c.rotate(Math.min(1,a*4)*3.14);c.translate(0,20);A.drawActor(c,e.id,{t:0,sw:0,atk:0,roll:0,acc:e.acc});c.restore();
   }else{
     c.globalAlpha=1-a;for(let i=0;i<6;i++){const q=i/6*6.28;A.E(c,e.x+Math.cos(q)*a*40,GROUND-30+Math.sin(q)*a*30,8*(1-a)+2,8*(1-a)+2,'#fff',0,1.4)}c.globalAlpha=1;
   }
@@ -757,14 +884,50 @@ function drawField(dt){
   if(flash>0){c.fillStyle=`rgba(255,255,255,${flash*2})`;c.fillRect(0,0,r,h)}
   if(banner&&banner.t<2.2){const a=Math.min(1,Math.min(banner.t*5,(2.2-banner.t)*3)),sub=banner.sub?20:0;c.globalAlpha=a;c.fillStyle=banner.col||'#e3170a';c.fillRect(0,h*.26-sub,r,44+sub);if(sub)word(c,banner.sub,r/2,h*.26-6,'#fffdf4',Math.min(15,r/24));word(c,banner.s,r/2,h*.26+23,'#ffe63b',Math.min(26,r/14));c.globalAlpha=1}
 }
+// 真の遡上で仲間を出した時。顔のアップと名前を右上に出す。新しいものほど上に積む
+function sortie(i){
+  const s=B.slots[i],c=s.last&&s.last[0]&&s.last[0].crew;if(!c)return;
+  const w=$('sortie'),el=document.createElement('div');el.className='so';el.appendChild(face(s.id,40,accOf(s.id,c[0].nm)));
+  const t=document.createElement('span');t.innerHTML=`<b></b>出撃!`;t.firstChild.textContent=nameOf(s.id,c[0].nm);el.appendChild(t);
+  w.prepend(el);while(w.children.length>3)w.lastChild.remove();setTimeout(()=>el.remove(),1800);
+}
+// 真の遡上で仲間がやられた時。セーブからすぐ消して、画面のはしに小さく知らせる
+let obitQ=[],obitT=0;
+function onFallen(f){
+  const t=save.trial;if(!t||!B.trial)return;
+  const x=t.team[f.s];if(x){x.alive=x.alive.filter(n=>n!==f.nm);t.fallen++;persist()}
+  obitQ.push({name:nameOf(f.id,f.nm),id:f.id,by:f.by});
+}
+// 一度にたくさんやられた時は、まとめて1つの知らせにする
+function tickObit(dt){
+  obitT=Math.max(0,obitT-dt);if(!obitQ.length||obitT>0)return;
+  const a=obitQ.splice(0,obitQ.length>=3?obitQ.length:1),w=$('obit'),el=document.createElement('div');el.className='ob';
+  el.appendChild(obitPic(a[0].by,a[0].id));
+  // 文は倒した敵の負けの見出し(「塩をふられた」など)
+  const h=LOSE[a[0].by]?LOSE[a[0].by].h:'やられた',s=document.createElement('span');s.textContent=a.length>1?`${a[0].name}ほか${a.length-1}匹は${h}`:`${a[0].name}は${h}`;el.appendChild(s);
+  w.appendChild(el);while(w.children.length>3)w.firstChild.remove();
+  setTimeout(()=>el.remove(),3200);
+  Snd.fallen();obitT=.8;
+}
+// 知らせの絵は、倒した敵の負け絵を小さくしたもの。同じ敵の絵は一度だけ描く
+const obitCache={};
+function obitPic(by,id){
+  const key=LOSE[by]?by:'_'+id;
+  if(!obitCache[key]){const S=2,src=document.createElement('canvas');src.width=120*S;src.height=63*S;const c=src.getContext('2d');
+    if(LOSE[by]){c.scale(S*120/400,S*63/210);A.drawLoseScene(c,by,1.2)}
+    else{c.fillStyle='#2a5561';c.fillRect(0,0,src.width,src.height);const pt=portrait(id,63);c.drawImage(pt,(src.width-pt.width)/2,0)}
+    obitCache[key]=src}
+  const src=obitCache[key],cv=document.createElement('canvas');cv.width=src.width;cv.height=src.height;cv.getContext('2d').drawImage(src,0,0);return cv;
+}
 let slotCache=[];
 function syncHud(){
   const full=B.money>=B.cap,hm=$('hud-money');
   $('m-now').textContent=fmt(B.money);$('m-cap').textContent=` / ${fmt(B.cap)}`;
   hm.style.setProperty('--c',B.money/B.cap);hm.classList.toggle('full',full);
   B.slots.forEach((s,i)=>{const el=$('slot-'+i);if(!el)return;
-    const poor=B.money<s.def.cost,waiting=s.cd>0,done=(1-s.cd/s.def.cd).toFixed(2),key=`${poor}${waiting}${done}`;
+    const poor=B.money<s.def.cost,waiting=s.cd>0,done=(1-s.cd/s.def.cd).toFixed(2),left=s.pool?s.pool.length:-1,key=`${poor}${waiting}${done}${left}`;
     if(slotCache[i]===key)return;slotCache[i]=key;
+    if(s.pool){el._left.textContent=left?'×'+left:'なし';el.classList.toggle('gone',!left)}
     if(!waiting&&el.classList.contains('cooling'))el.classList.add('flash');
     el.classList.toggle('poor',poor);el.classList.toggle('cooling',waiting);
     el._bar.style.setProperty('--c',done);el._sec.textContent=Math.ceil(s.cd)});
@@ -783,7 +946,7 @@ function tickBattle(dt){
     if(userPan>0)userPan-=dt;
     else{const front=B.us.length?Math.min(...B.us.map(e=>e.x)):B.L,fb=vfx.find(v=>v.k==='bgod'),target=fb?bgFocus(fb):front-vw*.32;cam+=(target-cam)*Math.min(1,dt*1.6);clampCam()}
   }
-  drainFx();tickGodSfx();
+  drainFx();tickGodSfx();if(!paused)tickObit(dt);
   // 演出もゲームの速さに合わせる。×2で当たる時刻と絵がずれないように
   for(const f of vfx)f.t+=paused||B.clash?0:dt*speed;
   vfx=vfx.filter(f=>f.t<f.life);
@@ -875,6 +1038,6 @@ sndBtn.onclick=()=>{save.snd=!save.snd;persist();sndLabel();if(save.snd)Snd.wake
 for(const ev of['touchend','pointerup'])addEventListener(ev,()=>Snd.wake(),{passive:true});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&view==='battle'&&B&&!B.over&&!paused)togglePause()});
 show('title');
-window.__g={get B(){return B},migrate,portrait,deploy,startBattle,get save(){return save},setTab,show,Snd,quit,playEnding,get adT(){return adT},set et(v){et=v},get et(){return et},finish};
+window.__g={face,startTrial,get B(){return B},migrate,portrait,deploy,startBattle,get save(){return save},setTab,show,Snd,quit,playEnding,get adT(){return adT},set et(v){et=v},get et(){return et},finish};
 requestAnimationFrame(frame);
 })();

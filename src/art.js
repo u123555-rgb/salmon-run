@@ -43,6 +43,13 @@ function fish(c,p,o){
   body();P(c,null);
   c.beginPath();c.arc(-L*.22,0,H*.44,-1.15,1.15);c.lineWidth=2;c.strokeStyle=INK;c.stroke();
   const ex=-L*.36,ey=-H*.12;
+  // 真の遡上の名札ごとの見た目。1:ねじり鉢巻き 2:リボン
+  if(p.acc===1){const A0=[ex-H*.5,-H*.7],A1=[ex+H*.15,-H*.32],A2=[ex+H*.86,-H*.5],qp=t=>[0,1].map(k=>(1-t)*(1-t)*A0[k]+2*t*(1-t)*A1[k]+t*t*A2[k]);
+    c.save();body();c.clip();c.lineCap='butt';const bp=()=>{c.beginPath();c.moveTo(...A0);c.quadraticCurveTo(...A1,...A2)};
+    c.lineWidth=H*.25+3.6;c.strokeStyle=INK;bp();c.stroke();c.lineWidth=H*.25;c.strokeStyle='#fff';bp();c.stroke();
+    for(let i=1;i<=5;i++){const[x,y]=qp(.12+i*.14);line(c,[[x-1.6,y-H*.1],[x+1.6,y+H*.1]],1.8,'#e3170a')}c.restore();
+    accKnot(c,A2[0],A2[1],H/24*.9)}
+  if(p.acc===2)accBow(c,ex+H*.55,-H*.55,H/24);
   if(o.brow)line(c,[[ex-5,ey-3-o.brow],[ex+5,ey-5+o.brow]],2.4);
   dot(c,ex,ey,o.eye||2.3);
   if(o.hook){c.beginPath();c.moveTo(-L*.44,-H*.3);c.quadraticCurveTo(-L*.62,-H*.2,-L*.56,H*.3);c.quadraticCurveTo(-L*.52,H*.02,-L*.4,H*.02);c.closePath();P(c,o.head||back);line(c,[[-L*.5,H*.34],[-L*.34,H*.2]],2.6);for(let i=0;i<3;i++)line(c,[[-L*.46+i*4,H*.16],[-L*.45+i*4,H*.26]],1.6,'#fff')}
@@ -379,7 +386,17 @@ mabushi(c,p){
   for(let i=0;i<16;i++){const q=i/16*6.2832;c.save();c.translate(Math.cos(q)*19,Math.sin(q)*16+1);c.rotate(q);c.fillStyle='#ff8a5c';c.fillRect(-2.6,-1.3,5.2,2.6);c.restore()}
   c.restore()},
 };
-function drawActor(c,id,p){(DRAW[id]||DRAW.shake)(c,p)}
+// 魚でない仲間の、頭のてっぺん(x,y)と大きさ。鉢巻きとリボンをここに描く
+const ACC_AT={ikura:[-1,-22,.62],nigiri:[-12,-43,.8],abari:[-12,-43,.8],oyako:[-3,-50,1],toba:[1,-63,.6],onigiri:[0,-19,.8],smoke:[-4,-45,.85],flake:[0,-51,.8],
+  ishikari:[-1,-41,1],chanchan:[-16,-38,.8],can:[0,-43,.9],bcroll:[0,-19,.8],maple:[-10,-39,.8],candy:[-2,-35,.7],cedar:[-15,-33,.7]};
+function accKnot(c,x,y,s){c.save();c.translate(x,y);c.scale(s,s);
+  poly(c,[[0,0],[13,-9],[11,-2]],'#fff',1.6);poly(c,[[0,1],[12,7],[8,10]],'#fff',1.6);line(c,[[5,-4],[9,-5]],1.4,'#e3170a');E(c,0,0,4.2,4.2,'#fff',0,1.6);c.restore()}
+function accBow(c,x,y,s){c.save();c.translate(x,y);c.scale(s,s);c.rotate(.25);
+  poly(c,[[0,0],[-10,-8],[-11,6]],'#ff5c86',1.7);poly(c,[[0,0],[10,-8],[11,6]],'#ff5c86',1.7);
+  dot(c,-7,-2,1.3,'#fff');dot(c,7,0,1.3,'#fff');dot(c,-5,3,1,'#fff');E(c,0,0,3.6,3.6,'#e3170a',0,1.7);c.restore()}
+function accBand(c,x,y,s){c.save();c.translate(x,y);c.scale(s,s);
+  rr(c,-15,-3.5,30,7,3.5,'#fff',1.8);for(let i=0;i<4;i++)line(c,[[-11+i*7.5,-3],[-8+i*7.5,3]],1.7,'#e3170a');c.restore();accKnot(c,x+15*s,y,s)}
+function drawActor(c,id,p){(DRAW[id]||DRAW.shake)(c,p);const a=p.acc&&ACC_AT[id];if(a){if(p.acc===1)accBand(c,a[0],a[1]+3*a[2],a[2]);else accBow(c,a[0]+9*a[2],a[1],a[2])}}
 
 function sign(c,txt,x,y,w,h,bg,fg,fs){rr(c,x-w/2,y-h/2,w,h,2,bg,2);c.fillStyle=fg;c.font=`${fs}px 'Dela Gothic One','Hiragino Sans',sans-serif`;c.textAlign='center';c.textBaseline='middle';c.fillText(txt,x,y+1)}
 // 遡上してきた鮭の群れ。体力が減ると数が減る
